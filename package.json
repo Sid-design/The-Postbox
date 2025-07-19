@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "start": "node backend/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint .",
     "format": "prettier --write ."
@@ -16,5 +17,10 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.3",
     "prettier": "^3.6.2"
+  },
+  "dependencies": {
+    "@google-cloud/pubsub": "^5.1.0",
+    "express": "^5.1.0",
+    "googleapis": "^153.0.0"
   }
 }

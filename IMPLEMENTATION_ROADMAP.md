@@ -21,9 +21,9 @@ Use the check-boxes to track progress (`☐` = not started, `⧗` = in progress,
 |------|-------------|-------|-------------|--------|
 | 1.1 | Select Tech Stack | • Choose language (Node, Python, Go)<br>• Pick framework (Express / FastAPI / Flask / Fiber) | Decision noted in `docs/ADR-001-stack.md` | ✅ |
 | 1.2 | Database Schema | • Design tables: `messages`, `senders`, `devices`<br>• Generate migration | `db/schema.sql` | ✅ |
-| 1.3 | Mail Integration (Gmail) | • ~~GCP Config (APIs, OAuth, Pub/Sub)~~<br>• ~~Implement backend OAuth flow~~<br>• Code Pub/Sub listener | Service that logs new message IDs | ⧗ |
+| 1.3 | Mail Integration (Gmail) | • ~~GCP Config (APIs, OAuth, Pub/Sub)~~<br>• ~~Implement backend OAuth flow~~<br>• ~~Code Pub/Sub listener~~ | Service that logs new message IDs | ✅ |
 | 1.4 | Mail Integration (IMAP fallback) | • IMAP IDLE listener with reconnect logic | IMAP poller service | ☐ |
-| 1.5 | Message Fetch & Parse | • Fetch RFC822 using message ID<br>• Extract `senderName`, `subject`, `bodyHtml`<br>• Save to DB | Parsed record in DB | ☐ |
+| 1.5 | Message Fetch & Parse | • Fetch RFC822 using message ID<br>• Extract `senderName`, `subject`, `bodyHtml`<br>• Save to DB | Parsed record in DB | ✅ |
 
 ---
 
@@ -53,7 +53,7 @@ _Flutter_ is assumed. Replace with React Native/Kotlin as needed.
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 4.1 | Project Scaffold | • `flutter create`<br>• Add `riverpod`, `flutter_html`, `firebase_messaging` | Running blank app | ☐ |
+| 4.1 | Project Scaffold | • `flutter create`<br>• Add `riverpod`, `flutter_html`, `firebase_messaging` | Running blank app | ⧗ |
 | 4.2 | State Management | • Define `Message` model<br>• Provider to fetch list from API | Data layer wired | ☐ |
 | 4.3 | Inbox List Screen | • Rectangular card (sender + subject)<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ☐ |
 | 4.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ☐ |
