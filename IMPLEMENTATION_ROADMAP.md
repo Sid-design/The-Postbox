@@ -10,8 +10,8 @@ Use the check-boxes to track progress (`☐` = not started, `⧗` = in progress,
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 0.1 | Repository & Tooling | • Initialize Git repo<br>• Add `.gitignore`, `prettier`, `eslint` (or flake8 if Python)<br>• Configure CI (GitHub Actions) to run lint/tests | Clean repo with CI badge | ☐ |
-| 0.2 | Documentation Starter | • Add this roadmap file<br>• Create `/docs` folder for future ADRs | Docs scaffolding | ☐ |
+| 0.1 | Repository & Tooling | • Initialize Git repo<br>• Add `.gitignore`, `prettier`, `eslint` (or flake8 if Python)<br>• Configure CI (GitHub Actions) to run lint/tests | Clean repo with CI badge | ✅ |
+| 0.2 | Documentation Starter | • Add this roadmap file<br>• Create `/docs` folder for future ADRs | Docs scaffolding | ✅ |
 
 ---
 
@@ -19,9 +19,9 @@ Use the check-boxes to track progress (`☐` = not started, `⧗` = in progress,
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 1.1 | Select Tech Stack | • Choose language (Node, Python, Go)<br>• Pick framework (Express / FastAPI / Flask / Fiber) | Decision noted in `docs/ADR-001-stack.md` | ☐ |
-| 1.2 | Database Schema | • Design tables: `messages`, `senders`, `devices`<br>• Generate migration | `db/schema.sql` | ☐ |
-| 1.3 | Mail Integration (Gmail) | • OAuth 2.0 flow (offline access)<br>• Implement Gmail **watch** + Pub/Sub receiver | Service that logs new message IDs | ☐ |
+| 1.1 | Select Tech Stack | • Choose language (Node, Python, Go)<br>• Pick framework (Express / FastAPI / Flask / Fiber) | Decision noted in `docs/ADR-001-stack.md` | ✅ |
+| 1.2 | Database Schema | • Design tables: `messages`, `senders`, `devices`<br>• Generate migration | `db/schema.sql` | ✅ |
+| 1.3 | Mail Integration (Gmail) | • OAuth 2.0 flow (offline access)<br>• Implement Gmail **watch** + Pub/Sub receiver | Service that logs new message IDs | ⧗ |
 | 1.4 | Mail Integration (IMAP fallback) | • IMAP IDLE listener with reconnect logic | IMAP poller service | ☐ |
 | 1.5 | Message Fetch & Parse | • Fetch RFC822 using message ID<br>• Extract `senderName`, `subject`, `bodyHtml`<br>• Save to DB | Parsed record in DB | ☐ |
 
