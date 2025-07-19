@@ -1,0 +1,23 @@
+-- db/schema.sql
+
+CREATE TABLE senders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_id INTEGER NOT NULL,
+    subject TEXT NOT NULL,
+    body_html TEXT NOT NULL,
+    received_at DATETIME NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT 0,
+    FOREIGN KEY (sender_id) REFERENCES senders (id)
+);
+
+CREATE TABLE devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fcm_token TEXT NOT NULL UNIQUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+); 
