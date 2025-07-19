@@ -15,7 +15,7 @@ The core idea is to:
 
 *   **Backend**: Node.js with Express
 *   **Database**: SQLite (initially, can be swapped for PostgreSQL)
-*   **Mobile App**: Flutter (for cross-platform iOS & Android support)
+*   **Mobile App**: React Native
 *   **Push Notifications**: Firebase Cloud Messaging (FCM)
 
 ## Project Status

@@ -49,13 +49,13 @@ Use the check-boxes to track progress (`☐` = not started, `⧗` = in progress,
 
 ## 4️⃣  Mobile App ‑ Phase 1 (Scaffold & Core UI)
 
-_Flutter_ is assumed. Replace with React Native/Kotlin as needed.
+_React Native_ is assumed.
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 4.1 | Project Scaffold | • `flutter create`<br>• Add `riverpod`, `flutter_html`, `firebase_messaging` | Running blank app | ⧗ |
-| 4.2 | State Management | • Define `Message` model<br>• Provider to fetch list from API | Data layer wired | ☐ |
-| 4.3 | Inbox List Screen | • Rectangular card (sender + subject)<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ☐ |
+| 4.1 | Project Scaffold | • `npx react-native init`<br>• Configure dependencies | Running blank app | ⧗ |
+| 4.2 | State Management | • Define `Message` model<br>• Set up state (e.g., Context, Redux) to fetch list from API | Data layer wired | ☐ |
+| 4.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ☐ |
 | 4.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ☐ |
 
 ---
