@@ -53,7 +53,7 @@ _React Native_ is assumed.
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 4.1 | Project Scaffold | • `npx react-native init`<br>• Configure dependencies | Running blank app | ⧗ |
+| 4.1 | Project Scaffold | • ~~Environment Setup (Node, JDK, Android Studio)~~<br>• `npx react-native init`<br>• Configure dependencies | Running blank app | ⧗ |
 | 4.2 | State Management | • Define `Message` model<br>• Set up state (e.g., Context, Redux) to fetch list from API | Data layer wired | ☐ |
 | 4.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ☐ |
 | 4.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ☐ |
