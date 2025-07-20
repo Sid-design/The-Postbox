@@ -20,8 +20,8 @@ Use the check-boxes to track progress (`☐` = not started, `⧗` = in progress,
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
 | 1.1 | Cloud Build Strategy | • Decide on iOS build strategy (EAS Build)<br>• Document prerequisites (Apple Developer Program) | Decision in `README.md` | ✅ |
-| 1.2 | EAS Integration | • Integrate Expo package into project<br>• Configure `eas.json` and `app.json` | Project configured for EAS | ⧗ |
-| 1.3 | First Development Build | • Trigger first iOS build on EAS<br>• Install custom development client on device | Working dev client | ☐ |
+| 1.2 | EAS Integration | • Integrate Expo package into project<br>• Configure `eas.json` and `app.json`<br>• Install `expo-dev-client` | Project configured for EAS | ✅ |
+| 1.3 | First Development Build | • Trigger first iOS build on EAS<br>• Install custom development client on device<br>• **Blocked:** Pending Apple Developer Program approval | Working dev client | 🚫 |
 
 ---
 
@@ -44,8 +44,8 @@ _React Native_ is assumed.
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
 | 3.1 | Project Scaffold | • `npx react-native init`<br>• Configure dependencies | Runnable blank app | ✅ |
-| 3.2 | App Structure & Navigation | • Define `Message` model<br>• Set up `react-navigation`<br>• Create `screens` directory | Base navigation wired | ☐ |
-| 3.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ☐ |
+| 3.2 | App Structure & Navigation | • Define `Message` model<br>• Set up `react-navigation`<br>• Create `screens` directory | Base navigation wired | ✅ |
+| 3.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ⧗ |
 | 3.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ☐ |
 
 ---
