@@ -45,7 +45,7 @@ _React Native_ is assumed.
 |------|-------------|-------|-------------|--------|
 | 3.1 | Project Scaffold | • `npx react-native init`<br>• Configure dependencies | Runnable blank app | ✅ |
 | 3.2 | App Structure & Navigation | • Define `Message` model<br>• Set up `react-navigation`<br>• Create `screens` directory | Base navigation wired | ✅ |
-| 3.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ⧗ |
+| 3.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ✅ |
 | 3.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ☐ |
 
 ---
@@ -64,7 +64,7 @@ _React Native_ is assumed.
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
 | 5.1 | Connect to API | • Fetch and display messages<br>• Implement "mark read" | Data-driven UI | ☐ |
-| 5.2 | Dark Mode & Themes | • Implement `ThemeMode.system`<br>• Verify HTML rendering in dark | Themed UI | ☐ |
+| 5.2 | Dark Mode & Themes | • Implement `ThemeMode.system`<br>• Verify HTML rendering in dark | Themed UI | ⧗ |
 | 5.3 | App Store Assets | • Icons, splash, screenshots | Ready for TestFlight/Play | ☐ |
 
 ---
