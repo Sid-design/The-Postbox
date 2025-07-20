@@ -47,6 +47,7 @@ _React Native_ is assumed.
 | 3.2 | App Structure & Navigation | • Define `Message` model<br>• Set up `react-navigation`<br>• Create `screens` directory | Base navigation wired | ✅ |
 | 3.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ✅ |
 | 3.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ☐ |
+| 3.5 | Unit Test Foundation | • Set up Jest & Testing Library<br>• Write initial tests for Inbox screen | Passing test suite | ⧗ |
 
 ---
 
@@ -66,6 +67,7 @@ _React Native_ is assumed.
 | 5.1 | Connect to API | • Fetch and display messages<br>• Implement "mark read" | Data-driven UI | ☐ |
 | 5.2 | Dark Mode & Themes | • Implement `ThemeMode.system`<br>• Verify HTML rendering in dark | Themed UI | ⧗ |
 | 5.3 | App Store Assets | • Icons, splash, screenshots | Ready for TestFlight/Play | ☐ |
+| 5.4 | Inbox UI Polish | • Add "Last Refreshed" header<br>• Add "Unread" filter<br>• Use timestamp on cards<br>• Support for images/emojis | Polished inbox UI | ☐ |
 
 ---
 
