@@ -1,23 +1,13 @@
 # 📬 Newsletter Reader
 
-This project is a mobile application designed to turn an email inbox full of newsletters into a clean, readable, and notification-driven news feed.
+This project is a mobile application designed to provide a clean, focused reading experience for email newsletters. It consists of a backend service to process incoming emails and a React Native mobile app.
 
-## The Goal
+## Technology Stack & Strategy
 
-The core idea is to:
-1.  Automatically watch an email account (initially targeting Gmail) for new emails from specific senders (newsletters).
-2.  Parse these emails to extract the sender, subject, and body content.
-3.  Store them in a central database.
-4.  Send a real-time push notification to a mobile app.
-5.  Present the newsletters in a simple, article-style format within the app.
+- **Backend:** Node.js with Express, connecting to a PostgreSQL database. It uses the Gmail API and Pub/Sub for real-time email processing.
+- **Mobile App:** Built with React Native (Bare Workflow).
+- **Development Strategy:** The project follows an **iOS-first** development strategy. Builds for the iOS platform are created using **Expo Application Services (EAS) Build**, which allows for building and deploying to physical devices from a non-macOS development environment.
 
-## Tech Stack
+## Getting Started
 
-*   **Backend**: Node.js with Express
-*   **Database**: SQLite (initially, can be swapped for PostgreSQL)
-*   **Mobile App**: React Native
-*   **Push Notifications**: Firebase Cloud Messaging (FCM)
-
-## Project Status
-
-For a detailed, step-by-step plan and to see the current progress, please refer to the [**Implementation Roadmap**](IMPLEMENTATION_ROADMAP.md). 
+For detailed instructions on setting up the backend or mobile components, please see the `README.md` file within the respective `backend/` and `mobile/` directories. 

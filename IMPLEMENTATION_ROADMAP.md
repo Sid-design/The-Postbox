@@ -15,83 +15,92 @@ Use the check-boxes to track progress (`☐` = not started, `⧗` = in progress,
 
 ---
 
-## 1️⃣  Backend ‑ Phase 1 (MVP Data Pipeline)
+## 1️⃣  Build & Deployment Setup
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 1.1 | Select Tech Stack | • Choose language (Node, Python, Go)<br>• Pick framework (Express / FastAPI / Flask / Fiber) | Decision noted in `docs/ADR-001-stack.md` | ✅ |
-| 1.2 | Database Schema | • Design tables: `messages`, `senders`, `devices`<br>• Generate migration | `db/schema.sql` | ✅ |
-| 1.3 | Mail Integration (Gmail) | • ~~GCP Config (APIs, OAuth, Pub/Sub)~~<br>• ~~Implement backend OAuth flow~~<br>• ~~Code Pub/Sub listener~~ | Service that logs new message IDs | ✅ |
-| 1.4 | Mail Integration (IMAP fallback) | • IMAP IDLE listener with reconnect logic | IMAP poller service | ☐ |
-| 1.5 | Message Fetch & Parse | • Fetch RFC822 using message ID<br>• Extract `senderName`, `subject`, `bodyHtml`<br>• Save to DB | Parsed record in DB | ✅ |
+| 1.1 | Cloud Build Strategy | • Decide on iOS build strategy (EAS Build)<br>• Document prerequisites (Apple Developer Program) | Decision in `README.md` | ✅ |
+| 1.2 | EAS Integration | • Integrate Expo package into project<br>• Configure `eas.json` and `app.json` | Project configured for EAS | ⧗ |
+| 1.3 | First Development Build | • Trigger first iOS build on EAS<br>• Install custom development client on device | Working dev client | ☐ |
 
 ---
 
-## 2️⃣  Backend ‑ Phase 2 (External Interface)
+## 2️⃣  Backend ‑ Phase 1 (MVP Data Pipeline)
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 2.1 | REST API | • GET `/messages` (paged)<br>• GET `/messages/{id}`<br>• PATCH `/messages/{id}/read` | API spec in OpenAPI (Swagger) | ☐ |
-| 2.2 | Auth & Security | • Issue JWT per device/user<br>• Middleware to protect endpoints | Secure endpoints | ☐ |
-| 2.3 | Push Notification Endpoint | • Store device tokens<br>• POST `/push` to send FCM/APNs | Working push sender | ☐ |
+| 2.1 | Select Tech Stack | • Choose language (Node, Python, Go)<br>• Pick framework (Express / FastAPI / Flask / Fiber) | Decision noted in `docs/ADR-001-stack.md` | ✅ |
+| 2.2 | Database Schema | • Design tables: `messages`, `senders`, `devices`<br>• Generate migration | `db/schema.sql` | ✅ |
+| 2.3 | Mail Integration (Gmail) | • ~~GCP Config (APIs, OAuth, Pub/Sub)~~<br>• ~~Implement backend OAuth flow~~<br>• ~~Code Pub/Sub listener~~ | Service that logs new message IDs | ✅ |
+| 2.4 | Mail Integration (IMAP fallback) | • IMAP IDLE listener with reconnect logic | IMAP poller service | ☐ |
+| 2.5 | Message Fetch & Parse | • Fetch RFC822 using message ID<br>• Extract `senderName`, `subject`, `bodyHtml`<br>• Save to DB | Parsed record in DB | ✅ |
 
 ---
 
-## 3️⃣  Push Notification Pipeline
-
-| Step | Description | Tasks | Deliverable | Status |
-|------|-------------|-------|-------------|--------|
-| 3.1 | Firebase/APNs Setup | • Create Firebase project & iOS APNs key<br>• Configure server credentials | Credentials in secrets store | ☐ |
-| 3.2 | Trigger Logic | • On message save → queue push job<br>• Batch multiple pushes if same sender | Worker sending push | ☐ |
-| 3.3 | Reliability & Retries | • Exponential retry on 5xx/Network<br>• Dead-letter log | Robust push pipeline | ☐ |
-
----
-
-## 4️⃣  Mobile App ‑ Phase 1 (Scaffold & Core UI)
+## 3️⃣  Mobile App ‑ Phase 1 (Scaffold & Core UI)
 
 _React Native_ is assumed.
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 4.1 | Project Scaffold | • ~~Environment Setup (Node, JDK, Android Studio)~~<br>• `npx react-native init`<br>• Configure dependencies | Running blank app | ⧗ |
-| 4.2 | State Management | • Define `Message` model<br>• Set up state (e.g., Context, Redux) to fetch list from API | Data layer wired | ☐ |
-| 4.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ☐ |
-| 4.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ☐ |
+| 3.1 | Project Scaffold | • `npx react-native init`<br>• Configure dependencies | Runnable blank app | ✅ |
+| 3.2 | App Structure & Navigation | • Define `Message` model<br>• Set up `react-navigation`<br>• Create `screens` directory | Base navigation wired | ☐ |
+| 3.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ☐ |
+| 3.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ☐ |
 
 ---
 
-## 5️⃣  Mobile App ‑ Phase 2 (Push & Polishing)
+## 4️⃣  Backend ‑ Phase 2 (External Interface)
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 5.1 | Push Registration | • Request permission<br>• Send FCM token to backend | Device token stored | ☐ |
-| 5.2 | Foreground & Background Handling | • Show local notification in foreground<br>• Deep-link to reader on tap | Seamless notification UX | ☐ |
-| 5.3 | Dark Mode & Themes | • Implement `ThemeMode.system`<br>• Verify HTML rendering in dark | Themed UI | ☐ |
-| 5.4 | App Store Assets | • Icons, splash, screenshots | Ready for TestFlight/Play | ☐ |
+| 4.1 | REST API | • GET `/messages` (paged)<br>• GET `/messages/{id}`<br>• PATCH `/messages/{id}/read` | API spec in OpenAPI (Swagger) | ☐ |
+| 4.2 | Auth & Security | • Issue JWT per device/user<br>• Middleware to protect endpoints | Secure endpoints | ☐ |
 
 ---
 
-## 6️⃣  End-to-End Integration & QA
+## 5️⃣  Mobile App ‑ Phase 2 (Connecting & Polishing)
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 6.1 | E2E Smoke Tests | • Send test email → verify push → open app → view content | Recorded test pass | ☐ |
-| 6.2 | Load & Latency Tests | • Simulate 100 newsletters/min<br>• Measure DB + push latency | Performance report | ☐ |
-| 6.3 | Security Review | • Pen-test API (OWASP top-10)<br>• Verify token scopes | Security checklist | ☐ |
+| 5.1 | Connect to API | • Fetch and display messages<br>• Implement "mark read" | Data-driven UI | ☐ |
+| 5.2 | Dark Mode & Themes | • Implement `ThemeMode.system`<br>• Verify HTML rendering in dark | Themed UI | ☐ |
+| 5.3 | App Store Assets | • Icons, splash, screenshots | Ready for TestFlight/Play | ☐ |
 
 ---
 
-## 7️⃣  Deployment
+## 6️⃣  Push Notification Pipeline
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 7.1 | Infrastructure as Code | • Terraform (or CloudFormation) for DB, Pub/Sub, Cloud Run | IaC scripts | ☐ |
-| 7.2 | CI/CD Pipeline | • Automated build, test, deploy for backend<br>• App build artifacts | Green pipeline | ☐ |
-| 7.3 | Monitoring & Alerts | • Metrics: message/sec, push failures<br>• Alerts via PagerDuty | Observability dashboards | ☐ |
+| 6.1 | Firebase/APNs Setup | • Create Firebase project & iOS APNs key<br>• Configure server credentials | Credentials in secrets store | ☐ |
+| 6.2 | Backend Endpoint | • Store device tokens<br>• POST `/push` to send FCM/APNs | Working push sender | ☐ |
+| 6.3 | Trigger Logic | • On message save → queue push job<br>• Batch multiple pushes if same sender | Worker sending push | ☐ |
+| 6.4 | Mobile Integration | • Request permission & send token<br>• Handle foreground/background notifications | Seamless notification UX | ☐ |
 
 ---
 
-## 8️⃣  Nice-to-Have Enhancements
+## 7️⃣  End-to-End Integration & QA
+
+| Step | Description | Tasks | Deliverable | Status |
+|------|-------------|-------|-------------|--------|
+| 7.1 | E2E Smoke Tests | • Send test email → verify push → open app → view content | Recorded test pass | ☐ |
+| 7.2 | Load & Latency Tests | • Simulate 100 newsletters/min<br>• Measure DB + push latency | Performance report | ☐ |
+| 7.3 | Security Review | • Pen-test API (OWASP top-10)<br>• Verify token scopes | Security checklist | ☐ |
+
+---
+
+## 8️⃣  Deployment
+
+| Step | Description | Tasks | Deliverable | Status |
+|------|-------------|-------|-------------|--------|
+| 8.1 | Infrastructure as Code | • Terraform (or CloudFormation) for DB, Pub/Sub, Cloud Run | IaC scripts | ☐ |
+| 8.2 | CI/CD Pipeline | • Automated build, test, deploy for backend<br>• App build artifacts | Green pipeline | ☐ |
+| 8.3 | Monitoring & Alerts | • Metrics: message/sec, push failures<br>• Alerts via PagerDuty | Observability dashboards | ☐ |
+
+---
+
+## 9️⃣  Nice-to-Have Enhancements
 
 | Idea | Notes |
 |------|-------|
