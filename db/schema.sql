@@ -1,5 +1,12 @@
 -- db/schema.sql
 
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    google_id TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL UNIQUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE senders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -16,8 +23,22 @@ CREATE TABLE messages (
     FOREIGN KEY (sender_id) REFERENCES senders (id)
 );
 
+CREATE TABLE subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (id),
+    FOREIGN KEY (sender_id) REFERENCES senders (id),
+    UNIQUE(user_id, sender_id)
+);
+
 CREATE TABLE devices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
     fcm_token TEXT NOT NULL UNIQUE,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (id)
 ); 
