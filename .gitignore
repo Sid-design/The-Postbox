@@ -20,6 +20,9 @@ yarn-error.log
 .env.production.local
 dist/
 
+# Secrets
+backend/serviceAccountKey.json
+
 # IDE files
 .idea/
 .vscode/

@@ -78,9 +78,9 @@ _React Native_ is assumed.
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 6.1 | Firebase/APNs Setup | • Create Firebase project & iOS APNs key<br>• Configure server credentials | Credentials in secrets store | ☐ |
-| 6.2 | Backend Endpoint | • Store device tokens<br>• POST `/push` to send FCM/APNs | Working push sender | ☐ |
-| 6.3 | Trigger Logic | • On message save → queue push job<br>• Batch multiple pushes if same sender | Worker sending push | ☐ |
+| 6.1 | Firebase/APNs Setup | • Create Firebase project & iOS APNs key<br>• Configure server credentials | Credentials in secrets store | ✅ |
+| 6.2 | Backend Endpoint | • Store device tokens<br>• POST `/devices` to send FCM/APNs | Working push sender | ✅ |
+| 6.3 | Trigger Logic | • On message save → queue push job<br>• Batch multiple pushes if same sender | Worker sending push | ✅ |
 | 6.4 | Mobile Integration | • Request permission & send token<br>• Handle foreground/background notifications | Seamless notification UX | ☐ |
 
 ---
