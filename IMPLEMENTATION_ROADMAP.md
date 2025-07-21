@@ -58,7 +58,7 @@ _React Native_ is assumed.
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
 | 4.1 | REST API | • GET `/messages` (paged)<br>• GET `/messages/{id}`<br>• PATCH `/messages/{id}/read` | API spec in OpenAPI (Swagger) | ⧗ |
-| 4.2 | Auth & Security | • Issue JWT per device/user<br>• Middleware to protect endpoints | Secure endpoints | ☐ |
+| 4.2 | Auth & Security | • Issue JWT per device/user<br>• Middleware to protect endpoints | Secure endpoints | ⧗ |
 
 ---
 
@@ -121,8 +121,4 @@ _React Native_ is assumed.
 ### How to Update This Roadmap
 
 1. **Work in sequence** as much as possible; later steps assume earlier ones are complete.
-2. Move the Status icon as you progress: `☐` → `⧗` → `✅`.
-3. If scope changes, append new steps rather than rewriting history for traceability.
-4. Keep each deliverable small and demonstrable.
-
-Happy building! 🎉 
+2. Move the Status icon as you progress: `☐` → `
