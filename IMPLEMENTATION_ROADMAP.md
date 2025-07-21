@@ -48,8 +48,9 @@ _React Native_ is assumed.
 | 3.2 | App Structure & Navigation | • Define `Message` model<br>• Set up `react-navigation`<br>• Create `screens` directory | Base navigation wired | ✅ |
 | 3.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ✅ |
 | 3.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ✅ |
-| 3.5 | Unit Test Foundation | • Set up Jest & Testing Library<br>• Write initial tests for Inbox screen<br>• **TODO:** Add E2E test for header navigation | Passing test suite | ⧗ |
+| 3.5 | Unit Test Foundation | • Set up Jest & Testing Library<br>• Write initial tests for Inbox screen<br>• **NOTE:** Most tests passing, but `App.test.tsx` has a final logic issue. | Passing test suite | ⧗ |
 | 3.6 | Sender Management Screen | • Initial onboarding checklist<br>• Settings screen to manage senders | UI for subscription control | ✅ |
+| 3.7 | Mobile Integration Tests | • Test navigation flows (Login → Inbox → Detail)<br>• Test state changes across components (e.g., pull-to-refresh) | Confident component interaction | ☐ |
 
 ---
 
@@ -59,6 +60,7 @@ _React Native_ is assumed.
 |------|-------------|-------|-------------|--------|
 | 4.1 | REST API | • GET `/messages` (paged)<br>• GET `/messages/{id}`<br>• PATCH `/messages/{id}/read`<br>• GET `/senders`, POST `/subscriptions` | API spec in OpenAPI (Swagger) | ✅ |
 | 4.2 | Auth & Security | • Issue JWT per device/user<br>• Middleware to protect endpoints | Secure endpoints | ✅ |
+| 4.3 | API Endpoint Tests | • Test all public and protected endpoints<br>• Verify correct error handling (401, 403, 404)<br>• Test data validation and edge cases | Robust & reliable API | ☐ |
 
 ---
 

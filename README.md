@@ -133,6 +133,21 @@ The application uses a JSON Web Token (JWT) based authentication strategy to sec
 
 This approach ensures that the user's Google credentials are never stored or handled directly by our backend. All access is controlled through our own application-specific tokens.
 
+### Jest Configuration Challenges
+
+During development, significant challenges were encountered while configuring the Jest testing environment for the React Native (Expo) project. These issues primarily stemmed from the interaction between Jest's Node.js environment and the native modules and modern JavaScript syntax (ES Modules) used by Expo and related libraries.
+
+The following errors were encountered and addressed:
+
+*   **`SyntaxError: Unexpected token 'export'`**: Caused by libraries (`@react-navigation`, `expo-*`, etc.) shipping untranspiled ES Module syntax.
+    *   **Solution**: A comprehensive `transformIgnorePatterns` regex was added to `jest.config.js` to instruct Babel to transpile these specific modules.
+*   **`TypeError: Cannot read properties of undefined (reading 'NativeModule')`**: This occurred when tests tried to import libraries with deep native dependencies that don't exist in a Node.js environment (`expo-device`, `expo-secure-store`, `expo-web-browser`, `expo-auth-session`).
+    *   **Solution**: These libraries were explicitly mocked in a central Jest setup file (`__tests__/jest/setup.js`) to provide a fake, functional implementation for the test runner.
+*   **Test Timeouts and Logic Errors**: Initial tests were timing out or failing because they were making real API calls or because the test assertions did not match the component's actual output.
+    *   **Solution**: A conventional mocking strategy for our `apiClient` was implemented. This, combined with correcting bugs found in the component source code, allowed the tests to run against predictable data.
+
+While most tests are now passing, a final logical issue in the `App.test.tsx` file remains unresolved. This experience highlights the importance of a robust and precise testing configuration from the outset of a React Native project.
+
 ## Getting Started
 
 For detailed instructions on setting up the backend or mobile components, please see the `README.md` file within the respective `backend/` and `mobile/` directories. 
