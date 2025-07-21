@@ -57,7 +57,7 @@ _React Native_ is assumed.
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 4.1 | REST API | • GET `/messages` (paged)<br>• GET `/messages/{id}`<br>• PATCH `/messages/{id}/read` | API spec in OpenAPI (Swagger) | ⧗ |
+| 4.1 | REST API | • GET `/messages` (paged)<br>• GET `/messages/{id}`<br>• PATCH `/messages/{id}/read`<br>• GET `/senders`, POST `/subscriptions` | API spec in OpenAPI (Swagger) | ✅ |
 | 4.2 | Auth & Security | • Issue JWT per device/user<br>• Middleware to protect endpoints | Secure endpoints | ⧗ |
 
 ---
