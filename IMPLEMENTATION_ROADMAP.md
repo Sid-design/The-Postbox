@@ -34,6 +34,7 @@ Use the check-boxes to track progress (`☐` = not started, `⧗` = in progress,
 | 2.3 | Mail Integration (Gmail) | • ~~GCP Config (APIs, OAuth, Pub/Sub)~~<br>• ~~Implement backend OAuth flow~~<br>• ~~Code Pub/Sub listener~~ | Service that logs new message IDs | ✅ |
 | 2.4 | Mail Integration (IMAP fallback) | • IMAP IDLE listener with reconnect logic | IMAP poller service | ☐ |
 | 2.5 | Message Fetch & Parse | • Fetch RFC822 using message ID<br>• Extract `senderName`, `subject`, `bodyHtml`<br>• Save to DB | Parsed record in DB | ✅ |
+| 2.6 | Sender Identification | • Scan for `List-Unsubscribe` header<br>• Store unique senders for user review | List of potential senders | ☐ |
 
 ---
 
@@ -48,6 +49,7 @@ _React Native_ is assumed.
 | 3.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ✅ |
 | 3.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ⧗ |
 | 3.5 | Unit Test Foundation | • Set up Jest & Testing Library<br>• Write initial tests for Inbox screen | Passing test suite | ⧗ |
+| 3.6 | Sender Management Screen | • Initial onboarding checklist<br>• Settings screen to manage senders | UI for subscription control | ☐ |
 
 ---
 
@@ -110,6 +112,7 @@ _React Native_ is assumed.
 | Sender-based grouping | Show list of senders with unread counts |
 | Offline caching | Store recent messages in device SQLite |
 | Analytics dashboard | Engagement (opens, clicks) |
+| Discover Feed | A curated/categorized list of popular newsletters users can subscribe to. |
 
 ---
 
