@@ -103,6 +103,21 @@ This session focused on establishing the core architecture, user flow, and featu
     *   A comprehensive test suite was written for all new functionality.
     *   A robust mocking strategy for the API client was implemented, allowing for stable and reliable component testing.
 
+## Push Notifications
+
+To keep users informed about new newsletter issues, a complete push notification system has been implemented. The goal is to deliver timely, relevant alerts without being intrusive.
+
+### Notification Flow
+
+1.  **Client Registration**: Upon login, the mobile app requests permission from the user to send notifications.
+2.  **Token Generation**: If permission is granted, the app uses `expo-notifications` to request a unique Expo Push Token from Apple (APNs) or Google (FCM).
+3.  **Backend Storage**: This token is sent to the backend via a `POST /devices` request and stored securely, associated with the user.
+4.  **Trigger Event**: When the backend Gmail synchronization job processes a new email and identifies it as a subscribed newsletter, it triggers a push notification event.
+5.  **Message Delivery**: The backend uses the Firebase Admin SDK to send a notification to the user's registered devices via the stored token.
+6.  **Client Handling**: The mobile app receives the notification. If the app is in the foreground, it displays an alert. If in the background, the OS handles the display.
+
+This architecture ensures a decoupled and robust system. The mobile client is only responsible for registering itself and handling the final payload, while the backend manages the complex logic of when and what to send. We use Expo's notification services to abstract away the complexities of dealing directly with APNs and FCM.
+
 ## Getting Started
 
 For detailed instructions on setting up the backend or mobile components, please see the `README.md` file within the respective `backend/` and `mobile/` directories. 
