@@ -34,7 +34,7 @@ Use the check-boxes to track progress (`☐` = not started, `⧗` = in progress,
 | 2.3 | Mail Integration (Gmail) | • ~~GCP Config (APIs, OAuth, Pub/Sub)~~<br>• ~~Implement backend OAuth flow~~<br>• ~~Code Pub/Sub listener~~ | Service that logs new message IDs | ✅ |
 | 2.4 | Mail Integration (IMAP fallback) | • IMAP IDLE listener with reconnect logic | IMAP poller service | ☐ |
 | 2.5 | Message Fetch & Parse | • Fetch RFC822 using message ID<br>• Extract `senderName`, `subject`, `bodyHtml`<br>• Save to DB | Parsed record in DB | ✅ |
-| 2.6 | Sender Identification | • Scan for `List-Unsubscribe` header<br>• Store unique senders for user review | List of potential senders | ☐ |
+| 2.6 | Sender Identification | • Scan for `List-Unsubscribe` header<br>• Store unique senders for user review<br>• **Refactored from old label logic** | List of potential senders | ⧗ |
 
 ---
 
