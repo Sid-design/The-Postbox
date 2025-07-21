@@ -31,6 +31,24 @@ The mobile app uses a combination of tools to ensure code quality and stability:
 - **Dependency Management:** The testing environment has known dependency conflicts with `react-test-renderer`. These have been resolved by forcing the installation of version `18.2.0` to match the project's React version.
 - **Workflow:** All new features or bug fixes must be accompanied by corresponding tests. The full test suite must pass before any code is committed.
 
+## Branding and UX
+
+### App Name
+
+The official name for the application is **The Postbox**.
+
+A list of alternative names has been documented for future consideration:
+- **Direct & Clear:** Readbox, Letterhead, Cleanfeed
+- **Modern & Abstract:** Unfold, Capsule, Relay
+- **Friendly & Familiar:** Paperboy, Scroll
+
+### Language and Tone
+
+The application's voice is guided by three principles:
+- **Clear:** We use simple, direct language and avoid technical jargon.
+- **Calm:** The user experience should be a relief from a chaotic inbox. The language is reassuring and serene.
+- **Respectful:** We are transparent about data handling and always put the user's privacy and control first.
+
 ## Core Logic: Email Processing Flow
 
 The application uses an event-driven flow to efficiently process incoming emails without constantly scanning the user's inbox. This ensures privacy, performance, and real-time updates.

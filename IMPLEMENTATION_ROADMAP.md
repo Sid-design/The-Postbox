@@ -70,6 +70,7 @@ _React Native_ is assumed.
 | 5.2 | Dark Mode & Themes | • Implement `ThemeMode.system`<br>• Verify HTML rendering in dark | Themed UI | ⧗ |
 | 5.3 | App Store Assets | • Icons, splash, screenshots | Ready for TestFlight/Play | ☐ |
 | 5.4 | Inbox UI Polish | • Add "Last Refreshed" header<br>• Add "Unread" filter<br>• Use timestamp on cards<br>• Support for images/emojis | Polished inbox UI | ☐ |
+| 5.5 | Branding & Asset Review | • Finalize logo design<br>• Review iconography and app store assets<br>• Polish UI text based on brand voice | Final visual identity | ☐ |
 
 ---
 
