@@ -113,7 +113,8 @@ _React Native_ is assumed.
 | Sender-based grouping | Show list of senders with unread counts |
 | Offline caching | Store recent messages in device SQLite |
 | Analytics dashboard | Engagement (opens, clicks) |
-| Discover Feed | A curated/categorized list of popular newsletters users can subscribe to. |
+| Discover Feed | A curated/categorized list of popular newsletters users can subscribe to.<br>• Add `category` to `senders` table. |
+| **Advanced Analytics** | **The current schema is designed to support future analytics (e.g., sender popularity, user engagement trends). This capability should be enhanced as new features are added.** |
 
 ---
 
