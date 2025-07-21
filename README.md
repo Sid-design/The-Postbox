@@ -73,6 +73,36 @@ graph TD
 4.  **Process or Ignore:** If the sender is on the user's approved list, the backend fetches the full email, processes it, and saves it. Otherwise, the email is completely ignored.
 5.  **Push to App:** If an email is processed, a notification is sent to the user's device, and the newsletter appears in the app.
 
+## Project Log
+
+### Session 1: Foundation & MVP Scaffolding
+
+This session focused on establishing the core architecture, user flow, and feature set for the MVP.
+
+#### Key Decisions & Strategy:
+
+*   **Application Name:** The official name was chosen as **The Postbox**.
+*   **Brand Voice:** The app's language will be **Clear, Calm, and Respectful**.
+*   **Core Logic:** We pivoted from a fragile Gmail label-based system to a robust backend approach that identifies newsletters by checking for the `List-Unsubscribe` header. This is less invasive and more reliable.
+*   **User Control:** The user will have full control over their subscriptions. The app will perform a one-time scan on first login to suggest senders, which the user can then manage from a dedicated screen.
+*   **Monorepo Structure:** We affirmed the project structure, with the `backend` and `mobile` apps as two separate, independent projects within the same repository, each with its own `package.json`.
+*   **Development Workflow:** We established a strict development process: **Implement ➔ Test ➔ Document ➔ Commit**.
+
+#### Implementation Highlights:
+
+*   **Backend:**
+    *   The database schema was finalized with `users` and `subscriptions` tables.
+    *   A full JWT authentication system was implemented to secure all API endpoints.
+    *   The "magic onboarding" feature to scan for and save a new user's initial subscriptions was built.
+    *   The complete set of MVP API endpoints (`/messages`, `/senders`, `/subscriptions/toggle`) was created.
+*   **Mobile App:**
+    *   The app was fully connected to the backend, replacing all mock data.
+    *   An authentication context using `expo-secure-store` was created to manage the user's session and JWT.
+    *   The `SenderManagementScreen` was built and connected to the live API.
+*   **Testing:**
+    *   A comprehensive test suite was written for all new functionality.
+    *   A robust mocking strategy for the API client was implemented, allowing for stable and reliable component testing.
+
 ## Getting Started
 
 For detailed instructions on setting up the backend or mobile components, please see the `README.md` file within the respective `backend/` and `mobile/` directories. 
