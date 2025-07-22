@@ -27,6 +27,7 @@ The application uses a consistent color palette across both light and dark modes
 The mobile app uses a combination of tools to ensure code quality and stability:
 
 - **Unit & Component Testing:** [Jest](https://jestjs.io/) is used as the primary test runner. We use [React Native Testing Library](https://testing-library.com/docs/react-native-testing-library/intro) to write tests that interact with components in a way that closely resembles a real user's experience.
+- **Integration Testing:** For end-to-end user flows, we've built integration tests that simulate the full navigation journey (e.g., Login → Inbox → Detail). These tests verify that all parts of the application—authentication, API calls, and navigation—work together correctly.
 - **Test Identification:** To create robust and maintainable tests, we add `testID` props to key components, allowing us to select them without relying on fragile implementation details.
 - **Dependency Management:** The testing environment has known dependency conflicts with `react-test-renderer`. These have been resolved by forcing the installation of version `18.2.0` to match the project's React version.
 - **Workflow:** All new features or bug fixes must be accompanied by corresponding tests. The full test suite must pass before any code is committed.

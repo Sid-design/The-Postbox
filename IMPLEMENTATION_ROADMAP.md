@@ -50,7 +50,7 @@ _React Native_ is assumed.
 | 3.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ✅ |
 | 3.5 | Unit Test Foundation | • Set up Jest & Testing Library<br>• Write initial tests for Inbox screen | Passing test suite | ✅ |
 | 3.6 | Sender Management Screen | • Initial onboarding checklist<br>• Settings screen to manage senders | UI for subscription control | ✅ |
-| 3.7 | Mobile Integration Tests | • Test navigation flows (Login → Inbox → Detail)<br>• Test state changes across components (e.g., pull-to-refresh) | Confident component interaction | ☐ |
+| 3.7 | Mobile Integration Tests | • Test navigation flows (Login → Inbox → Detail)<br>• Test state changes across components (e.g., pull-to-refresh) | Confident component interaction | ✅ |
 
 ---
 
