@@ -60,7 +60,7 @@ _React Native_ is assumed.
 |------|-------------|-------|-------------|--------|
 | 4.1 | REST API | • GET `/messages` (paged)<br>• GET `/messages/{id}`<br>• PATCH `/messages/{id}/read`<br>• GET `/senders`, POST `/subscriptions` | API spec in OpenAPI (Swagger) | ✅ |
 | 4.2 | Auth & Security | • Issue JWT per device/user<br>• Middleware to protect endpoints | Secure endpoints | ✅ |
-| 4.3 | API Endpoint Tests | • Test all public and protected endpoints<br>• Verify correct error handling (401, 403, 404)<br>• Test data validation and edge cases | Robust & reliable API | ☐ |
+| 4.3 | API Endpoint Tests | • Test all public and protected endpoints<br>• Verify correct error handling (401, 403, 404)<br>• Test data validation and edge cases | Robust & reliable API | ✅ |
 
 ---
 

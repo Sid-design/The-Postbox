@@ -5,6 +5,7 @@ This project is a mobile application designed to provide a clean, focused readin
 ## Technology Stack & Strategy
 
 - **Backend:** Node.js with Express, connecting to a PostgreSQL database. It uses the Gmail API and Pub/Sub for real-time email processing.
+- **Backend Testing:** The backend API is tested using Jest and Supertest to ensure all endpoints are reliable and secure.
 - **Mobile App:** Built with React Native (Bare Workflow).
 - **Development Strategy:** The project follows an **iOS-first** development strategy. Builds for the iOS platform are created using **Expo Application Services (EAS) Build**, which allows for building and deploying to physical devices from a non-macOS development environment.
 
