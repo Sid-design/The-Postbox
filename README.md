@@ -146,7 +146,7 @@ The following errors were encountered and addressed:
 *   **Test Timeouts and Logic Errors**: Initial tests were timing out or failing because they were making real API calls or because the test assertions did not match the component's actual output.
     *   **Solution**: A conventional mocking strategy for our `apiClient` was implemented. This, combined with correcting bugs found in the component source code, allowed the tests to run against predictable data.
 
-While most tests are now passing, a final logical issue in the `App.test.tsx` file remains unresolved. This experience highlights the importance of a robust and precise testing configuration from the outset of a React Native project.
+This experience highlights the importance of a robust and precise testing configuration from the outset of a React Native project.
 
 ## Getting Started
 

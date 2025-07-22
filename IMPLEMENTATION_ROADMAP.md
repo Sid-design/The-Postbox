@@ -48,7 +48,7 @@ _React Native_ is assumed.
 | 3.2 | App Structure & Navigation | • Define `Message` model<br>• Set up `react-navigation`<br>• Create `screens` directory | Base navigation wired | ✅ |
 | 3.3 | Inbox List Screen | • `FlatList` with custom component<br>• Pull-to-refresh<br>• Unread badge | Functional list UI | ✅ |
 | 3.4 | Detail Reader Screen | • Fetch `/messages/{id}`<br>• Render HTML<br>• Mark read on open | Reader view | ✅ |
-| 3.5 | Unit Test Foundation | • Set up Jest & Testing Library<br>• Write initial tests for Inbox screen<br>• **NOTE:** Most tests passing, but `App.test.tsx` has a final logic issue. | Passing test suite | ⧗ |
+| 3.5 | Unit Test Foundation | • Set up Jest & Testing Library<br>• Write initial tests for Inbox screen | Passing test suite | ✅ |
 | 3.6 | Sender Management Screen | • Initial onboarding checklist<br>• Settings screen to manage senders | UI for subscription control | ✅ |
 | 3.7 | Mobile Integration Tests | • Test navigation flows (Login → Inbox → Detail)<br>• Test state changes across components (e.g., pull-to-refresh) | Confident component interaction | ☐ |
 
