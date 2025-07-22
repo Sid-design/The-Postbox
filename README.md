@@ -150,6 +150,30 @@ The following errors were encountered and addressed:
 
 This experience highlights the importance of a robust and precise testing configuration from the outset of a React Native project.
 
+## MVP Build & Device Testing
+
+To test the application on a physical iPhone, we use **Expo Application Services (EAS) Build**. This is a cloud service that compiles and signs our app, allowing us to build for iOS from a non-macOS development environment.
+
+### Testing Workflow
+
+1.  **Authentication**: The first time, we will connect the project to your Expo and Apple Developer accounts.
+2.  **Trigger Build**: We will run `npx eas build --profile development --platform ios`. This uploads the code to EAS and starts the build process on a cloud-based macOS server.
+3.  **Code Signing**: EAS uses your Apple Developer credentials to request a signing certificate from Apple. This certificate is mandatory for any app that runs on a physical iPhone.
+4.  **Installation**: Once the build is complete, EAS provides a QR code. Scanning this code with your iPhone will install a "custom development client"—our app, with development tools included.
+5.  **Live Development**: With the app installed on your phone, we will run `npm start` on your PC. The app on your phone will connect to this local server, allowing you to see code changes live on your device as they are made.
+
+### Visual Flow
+
+```mermaid
+graph TD
+    A["Your Windows PC"] -- "npx eas build" --> B["EAS Build Server (macOS)"];
+    B -- "Requests Signature" --> C["Apple Developer Portal"];
+    C -- "Provides Signing Certificate" --> B;
+    B -- "Creates Signed .ipa File" --> D["EAS Storage"];
+    D -- "Generates QR Code" --> E["You"];
+    E -- "Scans QR Code with iPhone" --> F["App Installs on iPhone"];
+```
+
 ## Getting Started
 
 For detailed instructions on setting up the backend or mobile components, please see the `README.md` file within the respective `backend/` and `mobile/` directories. 
