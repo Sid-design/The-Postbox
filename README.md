@@ -105,19 +105,20 @@ This session focused on establishing the core architecture, user flow, and featu
     *   A comprehensive test suite was written for all new functionality.
     *   A robust mocking strategy for the `apiClient` was implemented, allowing for stable and reliable component testing.
 
-### Session 2: iOS Build Configuration
+### Session 2: iOS Build Configuration & Troubleshooting
 
-This session focused on preparing the project for its first iOS development build using Expo Application Services (EAS).
+This session focused on preparing the project for its first iOS development build using Expo Application Services (EAS). The process involved significant troubleshooting to resolve a persistent issue with the app's bundle identifier.
 
 #### Key Decisions & Strategy:
 
-*   **Bundle Identifier:** The official iOS bundle identifier was set to `com.postbox.app`.
-*   **Apple Developer Account:** The project was linked to the registered Apple Developer account by adding the unique Team ID to the Expo configuration (`app.json`). This step unblocked the ability to perform a development build and deploy the app to a physical device for testing.
+*   **Bundle Identifier:** After discovering the initial choice (`com.postbox.app`) was already registered, the official iOS bundle identifier was set to the unique value `io.thepostbox.app`. This identifier was successfully registered with the Apple Developer account.
+*   **Configuration Root Cause:** The EAS Build service was ignoring the `bundleIdentifier` value in `app.json` because a native `ios` directory existed. The build was instead picking up a default value (`org.reactjs.native.example.mobile`) that was present in a cached or template-generated file, despite it not being found in the source code.
+*   **Definitive Fix:** To permanently resolve the issue, the bundle identifier was hardcoded directly into the `ios/mobile/Info.plist` file. This is a robust solution that forces the build system to use the correct value, overriding any incorrect defaults from other sources.
 
 #### Implementation Highlights:
 
 *   **Configuration:**
-    *   Updated `mobile/app.json` with the new `bundleIdentifier` and `appleTeamId`.
+    *   Updated `mobile/app.json`, `mobile/ios/mobile/Info.plist`, and `mobile/ios/mobile.xcodeproj/project.pbxproj` with the new `io.thepostbox.app` bundle identifier.
     *   Updated the app `name` to "The Postbox" to align with branding.
 
 ## Push Notifications
