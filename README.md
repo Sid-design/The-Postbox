@@ -103,7 +103,22 @@ This session focused on establishing the core architecture, user flow, and featu
     *   The `SenderManagementScreen` was built and connected to the live API.
 *   **Testing:**
     *   A comprehensive test suite was written for all new functionality.
-    *   A robust mocking strategy for the API client was implemented, allowing for stable and reliable component testing.
+    *   A robust mocking strategy for the `apiClient` was implemented, allowing for stable and reliable component testing.
+
+### Session 2: iOS Build Configuration
+
+This session focused on preparing the project for its first iOS development build using Expo Application Services (EAS).
+
+#### Key Decisions & Strategy:
+
+*   **Bundle Identifier:** The official iOS bundle identifier was set to `com.postbox.app`.
+*   **Apple Developer Account:** The project was linked to the registered Apple Developer account by adding the unique Team ID to the Expo configuration (`app.json`). This step unblocked the ability to perform a development build and deploy the app to a physical device for testing.
+
+#### Implementation Highlights:
+
+*   **Configuration:**
+    *   Updated `mobile/app.json` with the new `bundleIdentifier` and `appleTeamId`.
+    *   Updated the app `name` to "The Postbox" to align with branding.
 
 ## Push Notifications
 
