@@ -121,6 +121,26 @@ This session focused on preparing the project for its first iOS development buil
     *   Updated `mobile/app.json`, `mobile/ios/mobile/Info.plist`, and `mobile/ios/mobile.xcodeproj/project.pbxproj` with the new `io.thepostbox.app` bundle identifier.
     *   Updated the app `name` to "The Postbox" to align with branding.
 
+### Session 3: Dependency Overhaul & Build Success
+
+After resolving the bundle identifier, the EAS build process began failing during the "Install dependencies" phase. This required a deep dive into the project's dependency tree and native iOS configuration.
+
+#### Key Decisions & Strategy:
+
+*   **Dependency Audit:** The `expo doctor` tool revealed numerous dependency conflicts and outdated packages. The primary strategy was to bring all packages in line with the versions recommended for the installed Expo SDK.
+*   **Forcing Resolution:** Initial attempts to fix dependencies automatically failed. The solution was to manually edit `package.json` with the correct versions, delete `package-lock.json`, and run `npm install --legacy-peer-deps` to generate a fresh, consistent dependency tree.
+*   **Build-Time Fix:** The root cause of the `npm install` failure on the EAS server was identified as a peer dependency conflict. This was solved by adding an `eas-build-pre-install` script to `package.json` to force the build server to use `--legacy-peer-deps`.
+*   **iOS Deployment Target:** Subsequent build errors indicated that the newer, correct dependencies required a higher minimum iOS version. The deployment target was raised to `15.6` in both the `Podfile` and the Xcode project settings to resolve the final blocker.
+
+#### Implementation Highlights:
+
+*   **Configuration:**
+    *   Updated core dependencies (`react`, `react-native`, etc.) to compatible versions.
+    *   Reinstalled all essential dev dependencies (`@react-native-community/cli`, etc.) using `npx expo install` to ensure correct versions.
+    *   Cleaned up `app.json` by removing unused keys and `metro.config.js` to use the standard Expo config.
+    *   Removed the unused `@react-native/new-app-screen` package.
+    *   Updated the iOS deployment target to `15.6` across the native project.
+
 ## Push Notifications
 
 To keep users informed about new newsletter issues, a complete push notification system has been implemented. The goal is to deliver timely, relevant alerts without being intrusive.
