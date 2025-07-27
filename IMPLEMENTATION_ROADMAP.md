@@ -21,7 +21,8 @@ Use the check-boxes to track progress (`☐` = not started, `⧗` = in progress,
 |------|-------------|-------|-------------|--------|
 | 1.1 | Cloud Build Strategy | • Decide on iOS build strategy (EAS Build)<br>• Document prerequisites (Apple Developer Program)<br>• **NOTE:** Detailed workflow for device testing added to main `README.md`. | Decision in `README.md` | ✅ |
 | 1.2 | EAS Integration | • Integrate Expo package into project<br>• Configure `eas.json` and `app.json`<br>• Install `expo-dev-client` | Project configured for EAS | ✅ |
-| 1.3 | First Development Build | • Trigger first iOS build on EAS<br>• Install custom development client on device<br>• **Blocked:** Pending Apple Developer Program approval | Working dev client | ✅ |
+- | 1.3 | First Development Build | • Trigger first iOS build on EAS<br>• Install custom development client on device<br>• **Completed:** After extensive troubleshooting. | Working dev client | ✅ |
+- | 1.4 | User Authentication | • Implement Google Sign-In<br>• Backend token exchange<br>• Secure JWT storage | User can log in | ✅ |
 
 ---
 

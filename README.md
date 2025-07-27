@@ -141,6 +141,52 @@ After resolving the bundle identifier, the EAS build process began failing durin
     *   Removed the unused `@react-native/new-app-screen` package.
     *   Updated the iOS deployment target to `15.6` across the native project.
 
+### Session 4: End-to-End Authentication & Backend Integration
+
+**Date:** July 28, 2025
+
+**Goal:** Achieve a complete, successful user login, from the mobile app to the backend and back.
+
+**Key Activities & Decisions:**
+
+1.  **Google Sign-In Troubleshooting (Mobile):**
+    *   **Problem:** After a successful build, Google Sign-In was failing with a `400 invalid_request` error.
+    *   **Cause:** We were using a "Web application" OAuth Client ID from Google Cloud, which prohibits the custom URI scheme (`io.thepostbox.app://...`) required for a native mobile app.
+    *   **Solution:** Created a new **iOS**-specific OAuth Client ID in Google Cloud and updated the mobile app's configuration to use it. This required a final native rebuild (`eas build`).
+
+2.  **Backend Connectivity Troubleshooting (Mobile ↔ Backend):**
+    *   **Problem:** After fixing Google Sign-In, the mobile app failed to connect to the backend with an `AxiosError: Network Error`.
+    *   **Cause:** The app was trying to connect to `localhost`, which is inaccessible from a physical device. We updated the API client to use the computer's local network IP address (`192.168.18.4`), but the error persisted.
+    *   **Root Cause:** The backend server was not running at all. The connection was failing because there was nothing to connect to.
+
+3.  **Backend Server Crash (Backend):**
+    *   **Problem:** The backend server was crashing immediately on startup with a `FirebaseAppError: Failed to parse private key`.
+    *   **Cause:** The `serviceAccountKey.json` file was invalid because a service account had never been properly created and configured for the project.
+    *   **Solution:**
+        1.  Created a new service account in Google Cloud IAM.
+        2.  Granted the service account the "Editor" role on the project.
+        3.  Generated a new JSON key for the service account and updated the `serviceAccountKey.json` file.
+
+4.  **Database Initialization Error (Backend):**
+    *   **Problem:** With the server now starting, it immediately crashed again with a `SQLITE_NOTADB: file is not a database` error.
+    *   **Cause:** The backend code was attempting to connect to `db/schema.sql`, which is a text script, not a binary database file.
+    *   **Solution:**
+        1.  Used the `sqlite3` command-line tool to create a new, empty database at `db/newsletter.db`.
+        2.  Executed the `schema.sql` script against the new database to create the tables.
+        3.  Updated the backend's database connection to point to `db/newsletter.db`.
+
+5.  **Final API Logic Fix (Backend):**
+    *   **Problem:** With all systems running, the final login attempt resulted in a `400 Bad Request` from our own backend.
+    *   **Cause:** The mobile app was sending a Google ID token in the format `{ "token": "..." }`, but the backend's `/login` endpoint was expecting `{ "googleId": "...", "email": "..." }`.
+    *   **Solution:** Rewrote the `/login` endpoint to correctly receive the Google ID token, use the `google-auth-library` to verify it, extract the user's details, and complete the login.
+
+**Outcome:**
+
+- **Successful End-to-End Login:** The user can now successfully sign in with Google on the iOS app. The app communicates with the live backend, verifies the identity, receives an app-specific token, stores it, and navigates to the main screen.
+- **Empty State UI:** Added a user-friendly "Your inbox is empty" message to the `InboxScreen` to handle the case for new users with no data.
+
+---
+
 ## Push Notifications
 
 To keep users informed about new newsletter issues, a complete push notification system has been implemented. The goal is to deliver timely, relevant alerts without being intrusive.
