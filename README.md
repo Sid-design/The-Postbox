@@ -299,3 +299,78 @@ For detailed instructions on setting up the backend or mobile components, please
 - Keep `gmail_id` unique index to avoid duplicates.
 
 *These items are documented for future implementation; some (e.g. WebView) require the next mobile rebuild.* 
+
+## 📥 Mailbox Screen (formerly Inbox)
+
+The Mailbox is the heart of the app – a vertically scrolling list of newsletter *tiles*. Below is the proposed feature set (JS-only items first, backend-dependent marked ⚙️):
+
+### Tile-level features
+
+| Feature | Purpose | Notes |
+|---------|---------|-------|
+| Unread indicator | Quickly spot new issues | Dot or colored left border; subject/snippet dim when read |
+| Sender avatar/logo | Visual cue for quick scanning | Fallback to initials; long-press avatar ⮕ Sender actions |
+| Snippet preview + hero image | Give context before opening | First inline image thumb (if available) |
+| Date/time chip | When the issue arrived | "Today", "Yesterday", or date |
+| Swipe actions | Rapid triage | ⬅ mark read/unread • ➡ quick-save/bookmark |
+| Bookmark/star | One-tap save to **Saved** tab | Star fills when saved |
+| Progress pill ⚙️ | Show read progress | Requires backend tracking scroll % |
+| Category tag ⚙️ | Filter/group by topic | Sender → tag(s); colored chips |
+| Tile count badge | Show number of messages in current view | Updates with filters (e.g., *Unread (7)*) |
+| Summary-mode card | Larger tile with auto-generated summary | Toggle via header icon |
+| Per-sender mute ⚙️ | Silence noisy senders | Toggles notifications only |
+| Multi-select mode | Batch operations | Long-press to enter select state |
+| Context menu / Share | System share sheet | Also copy link, open in browser |
+
+### Mailbox-level top-bar actions
+
+The header now hides the large "The Postbox" title to save space. Instead we’ll surface context-relevant controls (exact layout TBD):
+
+1. Search icon – filter tiles by sender or subject (client-side for now).
+2. Sort menu – newest/oldest, unread first, or by sender.
+3. Filter chips – quick toggle of *Unread*, *Saved*, or category tags (when implemented). Labels include count, e.g., *Unread (7)*.
+4. Summary-mode toggle icon – replaces list with bigger summary cards (single-tap back to normal).
+5. Edit-mode toggle – activates multi-select across tiles.
+
+These controls complement the per-tile gestures and keep the main screen focused on reading/training the feed.
+
+*Implementation status:* Only the basic tile with unread badge is live. All other items are documented for iterative rollout. 
+
+### 📌 Upcoming minor enhancements (easy builds)
+
+- Sticky date headers using SectionList for chronological grouping.
+- Real archive/delete workflow: `is_archived` column, backend endpoint, undo snackbar.
+- Correct email date storage (`internalDate` → ISO) and back-fill existing rows. 
+
+### ⚙️ Settings Screen – planned options
+
+1. **Account & Security**
+   - Google account email (read-only)
+   - Log out
+   - Disconnect & wipe local data
+   - App version / build number
+
+2. **Reading Experience**
+   - Text-size slider (live preview)
+   - Theme picker: Light | Dark | Sepia
+   - “Load remote images” toggle
+   - Default view: Original vs. Reader Mode
+
+3. **Notifications**
+   - Global on/off switch
+   - Quiet hours (Do Not Disturb)
+   - Per-sender overrides (link to dedicated screen)
+
+4. **Storage & Offline**
+   - Download issues for offline reading (toggle)
+   - Cache size indicator + Clear cache button
+   - Auto-purge content older than X days
+
+5. **Data & Privacy**
+   - Export all saved newsletters (ZIP)
+   - Delete account & data (GDPR)
+   - Privacy Policy / Terms links
+
+6. **Labs / Experimental** (optional, hidden behind a toggle)
+   - Summary-mode preview
+   - Highlight & Annotation beta 
