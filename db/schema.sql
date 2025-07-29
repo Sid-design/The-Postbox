@@ -1,18 +1,25 @@
 -- db/schema.sql
 
+-- Users Table: Stores user information
 CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    google_id TEXT NOT NULL UNIQUE,
-    email TEXT NOT NULL UNIQUE,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    google_id TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    google_refresh_token TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_known_history_id TEXT,
+    initial_scan_complete BOOLEAN DEFAULT 0 NOT NULL
 );
 
+-- Senders Table: Stores information about unique newsletter senders
 CREATE TABLE senders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE
 );
 
+-- Messages Table: Stores individual email messages
 CREATE TABLE messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sender_id INTEGER NOT NULL,
@@ -23,6 +30,7 @@ CREATE TABLE messages (
     FOREIGN KEY (sender_id) REFERENCES senders (id)
 );
 
+-- Subscriptions Table: Links users to senders they are subscribed to
 CREATE TABLE subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -35,6 +43,7 @@ CREATE TABLE subscriptions (
     UNIQUE(user_id, sender_id)
 );
 
+-- Devices Table: Stores FCM tokens for push notifications
 CREATE TABLE devices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,

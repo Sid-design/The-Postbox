@@ -259,3 +259,43 @@ graph TD
 ## Getting Started
 
 For detailed instructions on setting up the backend or mobile components, please see the `README.md` file within the respective `backend/` and `mobile/` directories. 
+
+## 📖 Newsletter Reading Experience Road-map (WIP)
+
+> The goal: every newsletter should look **exactly** like it does in your inbox *and* be delightful to read on mobile, while giving users tools to curate and annotate the content.
+
+### 1. Preserve original layout
+- Switch `DetailScreen` to **`react-native-webview`** (requires next mobile rebuild).
+- Feed the full raw HTML we already store.
+- Inject `<meta name="viewport">` when absent so pages scale.
+
+### 2. Reader Mode toggle
+- Backend endpoint `/messages/:id/reader` returns cleaned HTML via Mozilla **Readability** or Mercury Parser.
+- UI button lets the user switch between Original ↔ Reader views.
+
+### 3. Personalisation controls
+- Text-size slider, Light/Dark/Sepia theme.
+- "Load images" toggle.
+- Persist preferences in `AsyncStorage`.
+
+### 4. Inline editing & clipping
+- Inject JS in the WebView for **highlight & annotation** (`mark` spans).
+- Long-press to **Quick-Clip** an image/paragraph to a Read-Later list.
+- Optional custom CSS sandbox (saved per user, injected after reset sheet).
+
+### 5. Smooth navigation UX
+- Infinite vertical list of messages.
+- Pull-to-refresh at top, auto-paginate older mail when scrolling.
+- Bottom-sheet with quick actions (Delete / Hide Images / Open in Browser).
+
+### 6. Offline & performance
+- Cache HTML + images in `expo-file-system`, served via `file://`.
+- Gzip HTML before storing (SQLite BLOB).
+- Auto-purge cache >30 days.
+
+### 7. Backend adjustments
+- Continue storing full raw HTML (already in place).
+- Add reader-mode endpoint and CRUD APIs for highlights, clips & user CSS.
+- Keep `gmail_id` unique index to avoid duplicates.
+
+*These items are documented for future implementation; some (e.g. WebView) require the next mobile rebuild.* 
