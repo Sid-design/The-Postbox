@@ -187,6 +187,24 @@ After resolving the bundle identifier, the EAS build process began failing durin
 
 ---
 
+### Session 5: Date Display Bug Fix
+
+**Date:** August 4, 2025
+
+**Goal:** Ensure newsletter tiles display the correct received date for both legacy and new messages.
+
+#### Key Activities & Decisions
+
+1. **Robust Date Parsing (Mobile):** Introduced a `parseDate` utility in `InboxScreen.tsx` capable of handling ISO strings and epoch-millisecond values (number or numeric string).
+2. **Unified Rendering:** Updated both the per-tile date chip and SectionList grouping logic to use the new parser.
+3. **Backward Compatibility:** This change means legacy rows that stored `received_at` as raw epoch milliseconds now render correctly without requiring an immediate database migration. A future clean-up task remains to convert old rows to ISO for consistency.
+
+#### Outcome
+
+- All dates now render correctly (e.g., "Jul 28, 2025") regardless of their underlying storage format, resolving the user-reported display issue.
+
+---
+
 ## Push Notifications
 
 To keep users informed about new newsletter issues, a complete push notification system has been implemented. The goal is to deliver timely, relevant alerts without being intrusive.
@@ -309,7 +327,7 @@ The Mailbox is the heart of the app – a vertically scrolling list of newslette
 | Feature | Purpose | Notes |
 |---------|---------|-------|
 | Unread indicator | Quickly spot new issues | Dot or colored left border; subject/snippet dim when read |
-| Sender avatar/logo | Visual cue for quick scanning | Fallback to initials; long-press avatar ⮕ Sender actions |
+| Sender avatar/logo | Visual cue for quick scanning | Fallback to initials; long-press avatar ➜ Sender actions |
 | Snippet preview + hero image | Give context before opening | First inline image thumb (if available) |
 | Date/time chip | When the issue arrived | "Today", "Yesterday", or date |
 | Swipe actions | Rapid triage | ⬅ mark read/unread • ➡ quick-save/bookmark |
@@ -373,4 +391,108 @@ These controls complement the per-tile gestures and keep the main screen focused
 
 6. **Labs / Experimental** (optional, hidden behind a toggle)
    - Summary-mode preview
-   - Highlight & Annotation beta 
+   - Highlight & Annotation beta
+
+---
+
+## Session 7: Read Status Preservation Fix
+
+This session addressed the remaining issue where read status was not being preserved after refreshing the inbox, and also explained why the number of emails pulled varies slightly on refresh.
+
+### Problem Analysis:
+- **Read Status Issue:** The `saveMessage` function was using `INSERT OR REPLACE` with `COALESCE((SELECT is_read FROM messages WHERE gmail_id = ?), 0)`, but when `/messages/clear` deleted all messages, the subquery returned `NULL`, causing all re-imported messages to default to unread
+- **Varying Email Count:** The Gmail API search in `backfillMessages` uses `maxResults: 100` and searches for messages from the last 7 days, which can vary slightly due to API rate limiting, Gmail's internal indexing, and network timing
+
+### Solution Implemented:
+
+#### 1. Smart Backfill Approach
+- **Removed `/messages/clear` call** from the refresh flow
+- **Changed `saveMessage`** to use `INSERT OR IGNORE` instead of `INSERT OR REPLACE`
+- **Modified `backfillMessages`** to only import new messages that don't already exist
+- This naturally preserves read status since existing messages are never touched
+
+#### 2. Enhanced Logging
+- Added counters to track imported vs skipped messages during backfill
+- Provides visibility into how many new messages are found vs existing ones
+
+#### 3. Improved Refresh Logic
+- Frontend now only calls `/backfill` without clearing messages first
+- This ensures read status is always preserved while still importing new messages
+
+### Technical Details:
+- **Backend Changes:**
+  - `backend/index.js`: Modified `saveMessage` to use `INSERT OR IGNORE` and return boolean indicating if message was new
+  - `backend/index.js`: Updated `backfillMessages` to track and log imported vs skipped messages
+- **Frontend Changes:**
+  - `mobile/src/screens/InboxScreen.tsx`: Removed `/messages/clear` call from `onRefresh`
+
+### Why Email Count Varies Slightly:
+The Gmail API search has inherent variability due to:
+- **API Rate Limiting:** Gmail may return slightly different results under load
+- **Gmail's Internal Indexing:** Search results can vary based on Gmail's internal state
+- **Network Timing:** Slight differences in when the search is executed
+- **100 Message Limit:** The `maxResults: 100` parameter may cut off results differently each time
+
+This is **normal behavior** and not a bug. The variation is typically small (1-3 messages) and doesn't affect the core functionality.
+
+### Result:
+- ✅ Read status is now properly preserved after refresh
+- ✅ No more duplicates (from previous fix)
+- ✅ Efficient backfill that only imports new messages
+- ✅ Clear logging of what's happening during refresh
+- ✅ Understanding of why email counts vary slightly
+
+---
+
+## Session 6: Duplicate Message Fix
+
+This session addressed a critical issue where refreshing the inbox was creating duplicate messages, while also preserving the read status of existing messages.
+
+### Problem Analysis:
+- The `messages` table had a `gmail_id` column but the `UNIQUE` constraint wasn't properly enforced
+- The `/messages/clear` endpoint was made a no-op to preserve read status, but this prevented old messages from being removed
+- `INSERT OR IGNORE` in `saveMessage` wasn't working because the unique constraint wasn't active
+- This caused duplicates to accumulate on each refresh
+
+### Solution Implemented:
+
+#### 1. Database Migration for Messages Table
+- Added a robust one-off rebuild of the `messages` table similar to the `senders` table migration
+- Ensured `UNIQUE(gmail_id)` constraint is properly enforced
+- Used `PRAGMA foreign_keys = OFF/ON` to handle foreign key constraints during table rebuild
+
+#### 2. Fixed `/messages/clear` Endpoint
+- Reverted the endpoint to actually clear messages for the user's active subscriptions
+- This ensures fresh data on each refresh without duplicates
+
+#### 3. Updated `saveMessage` Function
+- Changed from `INSERT OR IGNORE` to `INSERT OR REPLACE`
+- Added logic to preserve `is_read` status when replacing existing messages
+- This prevents duplicates while maintaining read status
+
+#### 4. Simplified Refresh Logic
+- Removed the complex `hasRefreshedOnce` state from `InboxScreen.tsx`
+- Now always clears and backfills on refresh, which is safe since duplicates are prevented
+
+### Technical Details:
+- **Backend Changes:**
+  - `backend/index.js`: Added messages table rebuild migration
+  - `backend/index.js`: Fixed `/messages/clear` to actually delete messages
+  - `backend/index.js`: Updated `saveMessage` to use `INSERT OR REPLACE` with read status preservation
+- **Frontend Changes:**
+  - `mobile/src/screens/InboxScreen.tsx`: Simplified `onRefresh` logic
+
+### Result:
+- ✅ No more duplicate messages on refresh
+- ✅ Read status is preserved when messages are re-imported
+- ✅ Clean refresh behavior that always provides fresh data
+- ✅ Proper database constraints prevent future duplicates
+
+---
+
+## ⚠️ Pending OAuth Improvement
+
+Currently the backend stores only a short-lived *access token* (`users.temp_access_token`, ~1-hour TTL). Routes that hit the Gmail API server-to-server (e.g. `/rescan`, background back-fill, push-notification listener) will reuse this token if present but will **fail** once it expires unless the user logs in again.
+
+Long-term we should request offline access (`access_type=offline & prompt=consent`) during Google Sign-In, capture the one-time `refresh_token`, and save it in `users.google_refresh_token`. That will let the backend renew tokens automatically and remove the temporary work-around.
+

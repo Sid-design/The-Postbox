@@ -16,7 +16,9 @@ CREATE TABLE users (
 CREATE TABLE senders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE
+    email TEXT NOT NULL,
+    list_id TEXT,
+    UNIQUE(email, list_id)
 );
 
 -- Messages Table: Stores individual email messages
