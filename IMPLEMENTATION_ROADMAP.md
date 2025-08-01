@@ -125,7 +125,7 @@ _React Native_ is assumed.
 
 | Issue | Status | Resolution |
 |-------|--------|------------|
-| **OAuth Refresh Token Flow** | ✅ **COMPLETED** | Implemented proper refresh token exchange and automatic renewal. Backend now uses `users.google_refresh_token` for long-term Gmail API access. |
+| **OAuth Refresh Token Flow** | ✅ **COMPLETED** | Implemented proper refresh token exchange and automatic renewal. Backend now uses `users.google_refresh_token` for long-term Gmail API access. Enhanced error handling for existing users and added re-authentication endpoint. |
 
 ---
 
