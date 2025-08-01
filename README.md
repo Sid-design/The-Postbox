@@ -490,9 +490,27 @@ This session addressed a critical issue where refreshing the inbox was creating 
 
 ---
 
-## ⚠️ Pending OAuth Improvement
+## ✅ OAuth Improvement - COMPLETED
 
-Currently the backend stores only a short-lived *access token* (`users.temp_access_token`, ~1-hour TTL). Routes that hit the Gmail API server-to-server (e.g. `/rescan`, background back-fill, push-notification listener) will reuse this token if present but will **fail** once it expires unless the user logs in again.
+**Fixed:** The backend now properly implements refresh token flow for long-term Gmail API access.
 
-Long-term we should request offline access (`access_type=offline & prompt=consent`) during Google Sign-In, capture the one-time `refresh_token`, and save it in `users.google_refresh_token`. That will let the backend renew tokens automatically and remove the temporary work-around.
+### What Was Fixed:
+- **Refresh Token Exchange**: The backend now exchanges the `authCode` from mobile login for a refresh token
+- **Automatic Token Renewal**: The `getAuthenticatedClient()` function uses refresh tokens to automatically get new access tokens
+- **Removed Temporary Tokens**: Eliminated the short-lived `temp_access_token` fallback that was causing backend failures
+- **Database Schema**: The `users.google_refresh_token` column is now properly utilized
+
+### Technical Implementation:
+1. **Mobile App**: Requests `access_type=offline` and `prompt=consent` to get refresh tokens
+2. **Backend Login**: Exchanges `authCode` for refresh token using Google OAuth2 API
+3. **Token Storage**: Refresh tokens are securely stored in `users.google_refresh_token`
+4. **API Calls**: All Gmail API calls now use refresh tokens for automatic renewal
+
+### Benefits:
+- ✅ Backend Gmail API calls will never fail due to expired tokens
+- ✅ Users don't need to re-authenticate unless they explicitly revoke access
+- ✅ Push notifications and background sync work reliably
+- ✅ No more temporary token workarounds
+
+This resolves the critical technical debt that was preventing reliable long-term operation of the backend services.
 

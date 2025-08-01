@@ -2,6 +2,27 @@ const request = require('supertest');
 const { app, db } = require('../index');
 const jwt = require('jsonwebtoken');
 
+// Mock Google OAuth verification
+jest.mock('googleapis', () => ({
+  google: {
+    auth: {
+      OAuth2: jest.fn().mockImplementation(() => ({
+        verifyIdToken: jest.fn().mockResolvedValue({
+          getPayload: () => ({
+            sub: 'test-google-id',
+            email: 'test@example.com'
+          })
+        }),
+        getToken: jest.fn().mockResolvedValue({
+          tokens: {
+            refresh_token: 'test-refresh-token'
+          }
+        })
+      }))
+    }
+  }
+}));
+
 describe('API Endpoints', () => {
   let token;
 
@@ -57,7 +78,7 @@ describe('API Endpoints', () => {
       db.run = jest.fn(function(query, params, callback) {
         // @ts-ignore
         this.changes = 1;
-        callback(null);
+        if (callback) callback(null);
       });
 
       const response = await request(app)
@@ -75,7 +96,7 @@ describe('API Endpoints', () => {
       db.run = jest.fn(function(query, params, callback) {
         // @ts-ignore
         this.lastID = 1;
-        callback(null);
+        if (callback) callback(null);
       });
 
       const response = await request(app)
@@ -95,10 +116,10 @@ describe('API Endpoints', () => {
 
       const response = await request(app)
         .post('/login')
-        .send({ googleId: 'test-google-id', email: 'test@example.com' });
+        .send({ idToken: 'test-id-token' });
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('accessToken');
+      expect(response.body).toHaveProperty('token');
     });
   });
 }); 

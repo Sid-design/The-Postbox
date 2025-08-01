@@ -121,6 +121,14 @@ _React Native_ is assumed.
 
 ---
 
+## 🔧 Technical Debt - RESOLVED
+
+| Issue | Status | Resolution |
+|-------|--------|------------|
+| **OAuth Refresh Token Flow** | ✅ **COMPLETED** | Implemented proper refresh token exchange and automatic renewal. Backend now uses `users.google_refresh_token` for long-term Gmail API access. |
+
+---
+
 ### How to Update This Roadmap
 
 1. **Work in sequence** as much as possible; later steps assume earlier ones are complete.
