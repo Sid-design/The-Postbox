@@ -122,4 +122,47 @@ describe('API Endpoints', () => {
       expect(response.body).toHaveProperty('token');
     });
   });
+
+  describe('POST /backfill', () => {
+    it('should return 401 when user has no refresh token', async () => {
+      // Mock user without refresh token
+      db.get = jest.fn((query, params, callback) => {
+        if (query.includes('google_refresh_token')) {
+          callback(null, null); // No refresh token
+        } else {
+          callback(null, { id: 1, email: 'test@example.com' });
+        }
+      });
+
+      const response = await request(app)
+        .post('/backfill')
+        .set('Authorization', `Bearer ${token}`)
+        .send();
+      
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty('error');
+      expect(response.body).toHaveProperty('message');
+    });
+  });
+
+  describe('POST /reauth', () => {
+    it('should clear refresh token and return success message', async () => {
+      db.run = jest.fn(function(query, params, callback) {
+        if (callback) callback(null);
+      });
+
+      const response = await request(app)
+        .post('/reauth')
+        .set('Authorization', `Bearer ${token}`)
+        .send();
+      
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message');
+      expect(db.run).toHaveBeenCalledWith(
+        'UPDATE users SET google_refresh_token = NULL WHERE id = ?',
+        [1],
+        expect.any(Function)
+      );
+    });
+  });
 }); 
