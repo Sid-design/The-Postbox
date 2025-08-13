@@ -222,18 +222,151 @@ This architecture ensures a decoupled and robust system. The mobile client is on
 
 ## Authentication and Security
 
-The application uses a JSON Web Token (JWT) based authentication strategy to secure the backend API and ensure that users can only access their own data.
+The application uses a multi-layered authentication system that combines Google OAuth2 for initial authentication with a custom JWT system for ongoing API access. This ensures secure, long-term access to Gmail APIs while maintaining user privacy.
 
-### Authentication Flow
+### Complete Authentication Flow
 
-1.  **Google Sign-In**: The user initiates the login process on the mobile app using Google Sign-In, which is handled by `expo-auth-session`. This provides a secure, standard-based way for the user to authenticate.
-2.  **Token Exchange**: After a successful Google login, the client receives a Google ID Token. It sends this token to the backend's public `/login` endpoint.
-3.  **JWT Issuance**: The backend verifies the Google ID Token (or, in the current implementation, uses the provided Google ID and email to find or create a user) and generates a custom, short-lived JWT for our application.
-4.  **Secure Storage**: The mobile client receives this JWT and stores it securely on the device using `expo-secure-store`.
-5.  **Authenticated Requests**: For all subsequent requests to protected API endpoints, the JWT is automatically included in the `Authorization: Bearer <token>` header. This is managed centrally in the `AuthContext`.
-6.  **Backend Verification**: A middleware on the backend intercepts every request to a protected route, verifies the JWT's signature and expiration, and grants access if the token is valid.
+#### 1. Mobile App Authentication (Google OAuth2)
+- **Google Sign-In**: The user initiates login using `expo-auth-session` with Google OAuth2
+- **Configuration**: Uses iOS-specific OAuth Client ID with `access_type: 'offline'` and `prompt: 'consent'` to ensure refresh tokens are provided
+- **Token Collection**: After successful Google authentication, the app collects:
+  - `idToken`: Google's ID token for user verification
+  - `accessToken`: Short-lived Google access token
+  - `authCode`: Authorization code for backend token exchange
 
-This approach ensures that the user's Google credentials are never stored or handled directly by our backend. All access is controlled through our own application-specific tokens.
+#### 2. Backend Token Exchange (OAuth2 Refresh Token Flow)
+- **Login Endpoint**: Mobile app sends `{ idToken, authCode }` to `/login`
+- **Google Verification**: Backend verifies the Google ID token using `google-auth-library`
+- **Token Exchange**: Backend exchanges `authCode` for Google refresh token using `googleapis` OAuth2 client
+- **User Creation/Update**: Creates or updates user record with Google profile information
+- **Refresh Token Storage**: Stores the long-lived Google refresh token in `users.google_refresh_token`
+- **JWT Issuance**: Generates application-specific JWT for mobile app authentication
+- **Initial Scan**: If user is new, triggers `initialSenderScan` to populate initial subscriptions
+
+#### 3. Application Authentication (JWT)
+- **Secure Storage**: Mobile app stores JWT securely using `expo-secure-store`
+- **API Requests**: All subsequent API calls include `Authorization: Bearer <jwt>` header
+- **Backend Verification**: Protected endpoints verify JWT signature and expiration
+- **User Context**: JWT contains user ID for database queries
+
+#### 4. Gmail API Access (Refresh Token Flow)
+- **Automatic Renewal**: `getAuthenticatedClient()` function uses stored refresh token to get new access tokens
+- **No User Interaction**: Backend automatically handles token refresh without user intervention
+- **Long-term Access**: Refresh tokens provide continuous access until user explicitly revokes
+- **Error Handling**: If refresh token becomes invalid, backend clears it and requires re-authentication
+
+### Enhanced Debugging and Monitoring
+
+#### Backend Monitoring System
+- **Structured Logging**: `logAuth()` utility provides timestamped, structured logging for all authentication events
+- **Failure Tracking**: `authMonitor` object tracks failed login attempts and API request failures
+- **Automatic Recovery**: `ensureValidAuthClient()` function automatically clears invalid refresh tokens
+- **Health Monitoring**: `/debug/health` endpoint provides system-wide authentication statistics
+
+#### Debug Endpoints
+- **`/debug/auth`**: Comprehensive user authentication status including:
+  - Refresh token presence and validity
+  - Google API authentication capability
+  - Initial scan completion status
+  - Subscription and message counts
+- **`/debug/health`**: System health overview including:
+  - Failed authentication attempts
+  - Recent error messages
+  - Database record counts
+  - Authentication failure alerts
+
+#### Mobile App Debugging
+- **API Interceptors**: Axios request/response interceptors log all API calls with authentication status
+- **Debug Button**: InboxScreen includes "Debug Auth" button to check authentication status
+- **Error Visibility**: Enhanced error messages guide users when authentication fails
+
+### Error Handling and Recovery
+
+#### Common Authentication Issues
+- **`invalid_grant` Error**: Indicates expired or already-used authorization code
+  - **Recovery**: Backend checks for existing refresh tokens and continues if available
+  - **Fallback**: If no refresh token exists, user must re-authenticate
+- **"No refresh token found"**: User logged in before OAuth improvements
+  - **Solution**: `/reauth` endpoint allows manual re-authentication
+  - **Automatic**: `ensureValidAuthClient()` clears invalid tokens automatically
+- **"Error fetching messages"**: Usually indicates authentication failure
+  - **Debugging**: Use debug endpoints to identify root cause
+  - **Recovery**: Re-authentication via logout/login flow
+
+#### Long-term Solutions
+- **Automatic Token Validation**: Backend validates refresh tokens before API calls
+- **Graceful Degradation**: Users with old authentication methods are handled gracefully
+- **Comprehensive Logging**: All authentication events are logged for troubleshooting
+- **User Guidance**: Clear error messages guide users through recovery steps
+
+### Security Features
+
+#### Data Protection
+- **No Google Credentials Stored**: Backend never stores Google passwords or access tokens
+- **Secure Token Storage**: Refresh tokens stored in database, JWT in device secure storage
+- **Token Expiration**: JWT tokens have short expiration, refresh tokens are long-lived but revocable
+- **User Isolation**: Each user's data is completely isolated via JWT user context
+
+#### Privacy Controls
+- **Selective Email Processing**: Only emails from subscribed senders are processed
+- **No Content Scanning**: Backend only checks sender information, not email content
+- **User Control**: Users can revoke access at any time through Google Account settings
+- **Data Deletion**: `/reauth` endpoint allows complete data removal
+
+### Technical Implementation Details
+
+#### Backend Components
+- **`getAuthenticatedClient(userId)`**: Creates authenticated Google API client using refresh token
+- **`ensureValidAuthClient(userId)`**: Validates and refreshes tokens automatically
+- **`logAuth(level, message, data)`**: Structured logging for authentication events
+- **`authMonitor`**: Tracks authentication failures and provides alerts
+- **JWT Middleware**: Verifies application tokens on protected endpoints
+
+#### Mobile Components
+- **`AuthContext`**: Manages JWT storage and API authentication headers
+- **`LoginScreen`**: Handles Google OAuth2 flow with proper configuration
+- **API Client**: Includes authentication headers and error handling
+- **Debug Features**: Built-in authentication status checking
+
+This comprehensive authentication system ensures reliable, secure, and user-friendly access to Gmail APIs while providing robust debugging capabilities for troubleshooting issues.
+
+### Session persistence and token lifecycle (app-level)
+
+- **Access token (app JWT)**: Short‑lived token attached to all API calls.
+  - Current: 15 minutes, issued by the backend (`/login`).
+  - Silent refresh: ✅ implemented via `/auth/refresh` using a refresh token.
+- **Refresh token (Google)**: Long‑lived token stored in the backend database to access Gmail.
+  - Current: implemented and used server‑side only (no user interaction required).
+
+#### Expected behavior in the app
+
+- **App launch/resume**
+  - If a valid app JWT exists in `expo-secure-store`, the app opens directly to the inbox.
+  - If missing/expired/invalid, the app shows the login screen.
+- **After login**
+  - Store the app JWT in `expo-secure-store` and attach `Authorization: Bearer <jwt>` to all requests automatically.
+- **On 401/403 responses**
+  - Now: the app attempts one silent refresh via `/auth/refresh`, retries the original request, and only signs out if refresh fails.
+- **Network/offline/timeouts**
+  - Never sign out the user. Show an error state and allow retry when online.
+- **Manual logout**
+  - Clear stored tokens and return to the login screen.
+- **First‑login optional step**
+  - After the first successful login on a device, navigate once to the `SenderManagement` screen to configure subscriptions.
+
+#### Implementation status
+
+- **Backend**
+  - App JWT issuance with expiry: ✅ (15 minutes) — `backend/index.js` issues access + refresh tokens in `/login`.
+  - App refresh flow: ✅ `/auth/refresh` endpoint exchanges refresh token for a new access token.
+  - Google refresh token flow (for Gmail access): ✅ implemented and stored in the DB; used by server when needed.
+- **Mobile**
+  - Secure token storage and automatic header injection: ✅ via `AuthContext` and `apiClient`.
+  - Silent refresh + request retry on 401/403: ✅ implemented in `AuthContext` (queues concurrent requests).
+  - Auto sign‑out only if refresh fails: ✅.
+  - Offline handling that does not log the user out: ✅ error state on inbox and retry, user remains signed in.
+
+These changes align the UX with modern apps (e.g., Uber) where users remain signed in for long periods, with background refresh handling. Remaining work: add an app‑level refresh token + `/auth/refresh` endpoint and client logic to attempt a single silent refresh on 401/403 before falling back to sign‑out.
 
 ### Jest Configuration Challenges
 
