@@ -73,7 +73,9 @@ _React Native_ is assumed.
 | 5.2 | Dark Mode & Themes | • Implement `ThemeMode.system`<br>• Verify HTML rendering in dark | Themed UI | ✅ |
 | 5.3 | App Store Assets | • Icons, splash, screenshots | Ready for TestFlight/Play | ☐ |
 | 5.4 | Inbox UI Polish | • Add "Last Refreshed" header<br>• Add "Unread" filter<br>• Use timestamp on cards<br>• Support for images/emojis | Polished inbox UI | ☐ |
-| 5.5 | Branding & Asset Review | • Finalize logo design<br>• Review iconography and app store assets<br>• Polish UI text based on brand voice | Final visual identity | ☐ |
+| 5.4.1 | Bottom Navigation Consistency | • Standardize icon sizes (20px)<br>• Consistent label font size (10px)<br>• Remove Subscriptions tab font size override<br>• Add proper theme colors and borders<br>• Fix white box background around icons<br>• Ensure consistent icon container heights<br>• Apply Mailbox screen styling to all tabs with explicit transparent backgrounds | Consistent navigation across all tabs | ✅ |
+| 5.5 | Login Screen Design Enhancement | • Add modern branded interface with logo/icon<br>• Implement loading states and error handling UI<br>• Add smooth animations and transitions<br>• Support dark mode and responsive design<br>• Include privacy/security messaging<br>• Add haptic feedback and accessibility improvements | Professional login experience | ✅ |
+| 5.6 | Branding & Asset Review | • Finalize logo design<br>• Review iconography and app store assets<br>• Polish UI text based on brand voice | Final visual identity | ☐ |
 
 ---
 

@@ -21,6 +21,14 @@ CREATE TABLE senders (
     UNIQUE(email, list_id)
 );
 
+-- Migration: Add new columns to existing senders table
+ALTER TABLE senders ADD COLUMN description TEXT;
+ALTER TABLE senders ADD COLUMN category TEXT DEFAULT 'Other';
+ALTER TABLE senders ADD COLUMN subscriber_count INTEGER DEFAULT 0;
+ALTER TABLE senders ADD COLUMN featured BOOLEAN DEFAULT 0;
+ALTER TABLE senders ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE senders ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
 -- Messages Table: Stores individual email messages
 CREATE TABLE messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
