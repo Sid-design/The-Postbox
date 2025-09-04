@@ -222,7 +222,14 @@ This architecture ensures a decoupled and robust system. The mobile client is on
 
 ## Authentication and Security
 
-The application uses a multi-layered authentication system that combines Google OAuth2 for initial authentication with a custom JWT system for ongoing API access. This ensures secure, long-term access to Gmail APIs while maintaining user privacy.
+The application uses a **production-ready, enterprise-grade authentication system** that combines Google OAuth2 with PKCE (Proof Key for Code Exchange) for initial authentication, custom JWT tokens for API access, and automatic refresh token management. This ensures secure, long-term access to Gmail APIs while maintaining user privacy and following OAuth 2.0 Security Best Current Practice.
+
+**✅ MVP Authentication Features:**
+- Google OAuth2 with PKCE security
+- JWT token management with automatic refresh
+- Secure token storage (expo-secure-store)
+- Environment-based configuration
+- Comprehensive error handling and logging
 
 ### Complete Authentication Flow
 
@@ -330,6 +337,18 @@ The application uses a multi-layered authentication system that combines Google 
 
 This comprehensive authentication system ensures reliable, secure, and user-friendly access to Gmail APIs while providing robust debugging capabilities for troubleshooting issues.
 
+### 🔮 Future Authentication Enhancements (Post-MVP)
+
+The authentication system is designed with extensibility in mind. Future enhancements may include:
+
+- **Device Management**: Track and manage user devices with remote logout capabilities
+- **Multi-Provider OAuth2**: Support for Microsoft Outlook, Apple Sign-In, and other email providers
+- **Enhanced Security Monitoring**: Comprehensive audit logging and security event tracking
+- **Rate Limiting**: Protection against authentication abuse and brute force attacks
+- **Session Analytics**: User authentication patterns and security insights
+
+These enhancements are documented in the `IMPLEMENTATION_ROADMAP.md` file for future implementation phases.
+
 ### Session persistence and token lifecycle (app-level)
 
 - **Access token (app JWT)**: Short‑lived token attached to all API calls.
@@ -406,6 +425,140 @@ graph TD
     D -- "Generates QR Code" --> E["You"];
     E -- "Scans QR Code with iPhone" --> F["App Installs on iPhone"];
 ```
+
+---
+
+## 🚀 Production Deployment Guide
+
+### **From MVP to Production: Complete Launch Strategy**
+
+This comprehensive guide covers your journey from MVP testing to App Store launch.
+
+#### 📱 **Phase 1: TestFlight Beta Testing**
+**Prerequisites:**
+- ✅ **Apple Developer Program** ($99/year) - Required for TestFlight
+- ✅ **App Store Connect Account** - Included with Developer Program
+- ✅ **Xcode/iOS Development Environment** - For building and signing
+
+**TestFlight Setup Process:**
+```bash
+# 1. Apple Developer Program Setup
+# Visit: https://developer.apple.com/programs/
+# Enroll in Apple Developer Program ($99/year)
+
+# 2. EAS Build Configuration (eas.json)
+{
+  "build": {
+    "production": {
+      "ios": {
+        "bundleIdentifier": "io.thepostbox.app",
+        "buildType": "app-store"
+      }
+    }
+  }
+}
+
+# 3. Build & Upload to TestFlight
+npx eas build --platform ios --profile production
+npx eas submit --platform ios
+
+# 4. Beta Testing
+# - Internal testers: Up to 100 team members
+# - External testers: Up to 10,000 users via public link
+# - Collect feedback, crash reports, user analytics
+```
+
+#### 🔄 **Phase 2: CI/CD Pipeline**
+**Recommended Stack:**
+```javascript
+// eas.json - Complete CI/CD configuration
+{
+  "build": {
+    "development": {
+      "ios": { "bundleIdentifier": "io.thepostbox.app.dev" }
+    },
+    "staging": {
+      "ios": { "bundleIdentifier": "io.thepostbox.app.staging" }
+    },
+    "production": {
+      "ios": { "bundleIdentifier": "io.thepostbox.app" }
+    }
+  }
+}
+```
+
+**Environment Strategy:**
+```
+Development → Staging (UAT) → Production
+     ↓            ↓            ↓
+  Local dev    Beta users   App Store
+  Hot reload   Full tests   All users
+ Debug tools  Monitoring   Analytics
+```
+
+#### 🖥️ **Phase 3: Backend Hosting**
+**You DO Need a Server** (Apple doesn't provide backend hosting)
+
+**Recommended Options:**
+- **Vercel** ($20/month) - Easiest for MVPs, built-in CI/CD
+- **Render** ($7/month) - Managed hosting with PostgreSQL
+- **DigitalOcean** ($12/month) - Full control with scaling
+
+**Critical: Database Migration**
+```bash
+# SQLite → PostgreSQL (Required for production)
+# SQLite won't scale for multiple users
+# Need proper backup, migration, and connection pooling
+```
+
+#### 📊 **Phase 4: Analytics & Monitoring**
+**Firebase Analytics (FREE & Recommended):**
+```javascript
+// Already configured in your app
+✅ User behavior tracking
+✅ Crash reporting
+✅ Performance monitoring
+✅ Custom event tracking
+```
+
+**Additional Monitoring:**
+- **Sentry** ($29/month) - Error tracking & crash reporting
+- **DataDog** ($15-25/month) - Advanced monitoring
+- **PostHog** ($0-50/month) - User analytics
+
+#### 🧪 **Phase 5: UAT Environment**
+**User Acceptance Testing** - Final validation before production
+```bash
+# Separate staging environment
+# - staging.thepostbox.app (subdomain)
+# - Staging TestFlight build
+# - Beta user feedback collection
+# - Bug tracking integration
+```
+
+#### 💰 **Cost Breakdown (Monthly):**
+| Service | Cost | Purpose |
+|---------|------|---------|
+| **Apple Developer** | $99/year | TestFlight + App Store |
+| **Vercel** | $20 | Backend hosting |
+| **PostgreSQL** | $15 | Database |
+| **Firebase** | $0 | Analytics & push notifications |
+| **Sentry** | $29 | Error monitoring |
+| **Domain** | $15 | Custom domain |
+| **Total** | ~$79/month | Full production stack |
+
+#### 🎯 **8-Week Deployment Timeline:**
+- **Week 1-2**: TestFlight setup, Apple Developer Program
+- **Week 3-4**: Backend hosting, database migration
+- **Week 5-6**: CI/CD pipeline, analytics setup
+- **Week 7-8**: UAT testing, App Store submission
+
+#### 📋 **Immediate Next Steps:**
+- [ ] Enroll in Apple Developer Program ($99/year)
+- [ ] Set up Vercel account for backend hosting
+- [ ] Plan SQLite → PostgreSQL migration
+- [ ] Configure production EAS Build
+- [ ] Set up Firebase Analytics
 
 ## Getting Started
 

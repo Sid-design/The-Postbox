@@ -100,13 +100,16 @@ _React Native_ is assumed.
 
 ---
 
-## 8️⃣  Deployment
+## 8️⃣  Production Deployment & Testing
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
-| 8.1 | Infrastructure as Code | • Terraform (or CloudFormation) for DB, Pub/Sub, Cloud Run | IaC scripts | ☐ |
-| 8.2 | CI/CD Pipeline | • Automated build, test, deploy for backend<br>• App build artifacts | Green pipeline | ☐ |
-| 8.3 | Monitoring & Alerts | • Metrics: message/sec, push failures<br>• Alerts via PagerDuty | Observability dashboards | ☐ |
+| **8.1 TestFlight Setup** | Beta testing distribution via Apple TestFlight | • Apple Developer Program ($99/year)<br>• App Store Connect setup<br>• Build signing & upload<br>• Tester management | TestFlight app ready for beta users | ☐ |
+| **8.2 CI/CD Pipeline** | Automated build, test, & deployment pipeline | • EAS Build configuration<br>• Environment setup (Dev/Staging/Prod)<br>• Automated testing<br>• Release management | Full CI/CD pipeline | ☐ |
+| **8.3 Backend Hosting** | Production server & database hosting | • Choose hosting provider (Vercel/Render/DigitalOcean)<br>• Database migration (SQLite → PostgreSQL)<br>• Environment configuration<br>• Domain & SSL setup | Scalable backend infrastructure | ☐ |
+| **8.4 UAT Environment** | User Acceptance Testing environment | • Separate staging environment<br>• Beta user onboarding<br>• Feedback collection system<br>• Bug tracking integration | UAT-ready environment | ☐ |
+| **8.5 Analytics & Monitoring** | Comprehensive app & backend monitoring | • Firebase Analytics setup<br>• Crash reporting<br>• Performance monitoring<br>• User behavior tracking | Analytics dashboard | ☐ |
+| **8.6 Production Launch** | App Store submission & launch | • App Store optimization<br>• Final testing & QA<br>• Launch strategy<br>• Post-launch monitoring | Live app in App Store | ☐ |
 
 ---
 
@@ -128,6 +131,19 @@ _React Native_ is assumed.
 | Issue | Status | Resolution |
 |-------|--------|------------|
 | **OAuth Refresh Token Flow** | ✅ **COMPLETED** | Implemented proper refresh token exchange and automatic renewal. Backend now uses `users.google_refresh_token` for long-term Gmail API access. Enhanced error handling for existing users and added re-authentication endpoint. |
+
+---
+
+## 🔐 Post-MVP Authentication Enhancements
+
+| Feature | Description | Business Value | Status |
+|---------|-------------|---------------|--------|
+| **Device Management & Session Tracking** | Track user devices, enable remote logout, monitor login activity | Security & compliance, better user control | ☐ |
+| **OAuth2 Provider Abstraction** | Modular architecture to easily add Microsoft Outlook, Apple Sign-In, or other OAuth providers | Scalability, multi-provider support | ☐ |
+| **Enhanced Security Monitoring** | Comprehensive audit logging, failed login tracking, suspicious activity detection | Security monitoring, compliance | ☐ |
+| **Rate Limiting** | Prevent authentication abuse and brute force attacks | Security hardening | ☐ |
+| **Multi-Device Logout** | Allow users to logout from all devices simultaneously | Security & convenience | ☐ |
+| **Session Analytics** | Track authentication patterns, login frequency, device usage | User insights, security monitoring | ☐ |
 
 ---
 
