@@ -1,12 +1,10 @@
 [build]
 builder = "NIXPACKS"
-# Use `npm i ...` if you don't have a package-lock.json
+rootDirectory = "backend"
 buildCommand = "npm ci --omit=dev --no-audit --no-fund && npm run build"
 
-[start]
-startCommand = "npm run start"
-
 [deploy]
+startCommand = "npm run start"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
