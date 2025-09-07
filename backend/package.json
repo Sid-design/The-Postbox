@@ -5,7 +5,11 @@
   "scripts": {
     "start": "node index.js",
     "build": "echo \"Build complete\"",
-    "test": "jest"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:verbose": "jest --verbose",
+    "test:runner": "node test-runner.js"
   },
   "keywords": [],
   "author": "",
