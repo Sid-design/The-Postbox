@@ -14,4 +14,4 @@ node_modules/
 *.sqlite
 *.db
 railway-deploy/
-*.md
+

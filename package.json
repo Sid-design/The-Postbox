@@ -1,34 +1,28 @@
 {
   "name": "newsletter-reader",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Newsletter Reader - A mobile app for managing newsletter subscriptions",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "mobile"
+  ],
   "scripts": {
-    "start": "node backend/index.js",
-    "build": "echo 'Build complete - no build step required'",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node start.js",
+    "backend": "cd backend && npm start",
+    "mobile": "cd mobile && npm start",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "postinstall": "echo 'Dependencies installed'"
+    "test": "npm run test --workspaces"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "eslint-config-prettier": "^8.0.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "prettier": "^2.0.0"
   },
   "engines": {
-    "node": ">=18 <19"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
-  "devDependencies": {
-    "@types/react": "~19.0.10",
-    "eslint": "^9.31.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.3",
-    "prettier": "^3.6.2",
-    "typescript": "~5.8.3"
-  },
-  "dependencies": {
-    "@google-cloud/pubsub": "^5.1.0",
-    "express": "^5.1.0",
-    "googleapis": "^153.0.0",
-    "sqlite3": "^5.1.7"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }
