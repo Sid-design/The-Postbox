@@ -60,6 +60,54 @@ function logAuth(level, message, data = null) {
   return logEntry
 }
 
+// Comprehensive logging utility
+function logRequest(req, res, next) {
+  const start = Date.now()
+  const timestamp = new Date().toISOString()
+  
+  // Log request
+  console.log(`[REQUEST] ${timestamp} ${req.method} ${req.path}`, {
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    hasAuth: !!req.headers.authorization,
+    contentType: req.get('Content-Type'),
+    body: req.method !== 'GET' ? req.body : undefined
+  })
+  
+  // Override res.end to log response
+  const originalEnd = res.end
+  res.end = function(chunk, encoding) {
+    const duration = Date.now() - start
+    console.log(`[RESPONSE] ${timestamp} ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`)
+    originalEnd.call(this, chunk, encoding)
+  }
+  
+  next()
+}
+
+// Error logging utility
+function logError(error, context = 'Unknown', additionalData = null) {
+  const timestamp = new Date().toISOString()
+  const errorInfo = {
+    timestamp,
+    context,
+    error: error.message || error,
+    stack: error.stack,
+    additionalData
+  }
+  
+  console.error(`[ERROR] ${timestamp} [${context}]:`, errorInfo)
+  
+  // In production, you might want to send this to a logging service
+  // like Sentry, LogRocket, or your own logging endpoint
+}
+
+// Performance logging utility
+function logPerformance(operation, duration, additionalData = null) {
+  const timestamp = new Date().toISOString()
+  console.log(`[PERFORMANCE] ${timestamp} ${operation}: ${duration}ms`, additionalData)
+}
+
 // --- FIREBASE SETUP ---
 let serviceAccount
 
@@ -398,14 +446,168 @@ app.use(compression({
 
 app.use(express.json())
 
+// Add comprehensive logging middleware
+app.use(logRequest)
+
 // --- PUBLIC ROUTES ---
 app.get('/', (req, res) => {
   res.send('Newsletter Reader Backend (PostgreSQL) is running!')
 })
 
-app.get('/health', (req, res) => {
-  res.status(200).send('ok')
-})
+app.get('/health', async (req, res) => {
+  try {
+    // Check database connection
+    await pool.query('SELECT 1');
+    
+    res.json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+      version: process.env.npm_package_version || '1.0.0'
+    });
+  } catch (error) {
+    console.error('Health check failed:', error);
+    res.status(503).json({ 
+      status: 'ERROR', 
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: 'Database connection failed'
+    });
+  }
+});
+
+// Detailed health check endpoint
+app.get('/health/detailed', async (req, res) => {
+  try {
+    const health = {
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version || '1.0.0',
+      environment: process.env.NODE_ENV || 'development',
+      services: {}
+    };
+    
+    // Check database
+    try {
+      const dbResult = await pool.query('SELECT COUNT(*) as count FROM users');
+      health.services.database = {
+        status: 'OK',
+        userCount: dbResult.rows[0].count
+      };
+    } catch (error) {
+      health.services.database = {
+        status: 'ERROR',
+        error: error.message
+      };
+    }
+    
+    // Check Google API (if configured)
+    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+      health.services.googleApi = {
+        status: 'CONFIGURED',
+        clientId: process.env.GOOGLE_CLIENT_ID.substring(0, 20) + '...'
+      };
+    } else {
+      health.services.googleApi = {
+        status: 'NOT_CONFIGURED'
+      };
+    }
+    
+    // Check Firebase (if configured)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY && process.env.FIREBASE_SERVICE_ACCOUNT_KEY !== 'placeholder-set-in-dashboard') {
+      health.services.firebase = {
+        status: 'CONFIGURED'
+      };
+    } else {
+      health.services.firebase = {
+        status: 'NOT_CONFIGURED'
+      };
+    }
+    
+    res.json(health);
+  } catch (error) {
+    console.error('Detailed health check failed:', error);
+    res.status(500).json({ 
+      status: 'ERROR', 
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
+});
+
+// API Documentation endpoint
+app.get('/api/docs', (req, res) => {
+  const apiDocs = {
+    title: 'Newsletter Reader API',
+    version: '1.0.0',
+    description: 'API for managing Gmail newsletters and subscriptions',
+    baseUrl: `${req.protocol}://${req.get('host')}`,
+    endpoints: {
+      authentication: {
+        'POST /login': 'Exchange Google ID token for app JWT',
+        'POST /auth/refresh': 'Refresh expired JWT token',
+        'POST /auth/refresh-gmail': 'Refresh Gmail API access token'
+      },
+      users: {
+        'GET /api/user': 'Get current user information'
+      },
+      messages: {
+        'GET /api/messages': 'Get paginated list of messages',
+        'GET /api/messages/:id': 'Get specific message by ID',
+        'POST /api/messages/:id/read': 'Mark message as read',
+        'POST /api/messages/:id/unread': 'Mark message as unread'
+      },
+      senders: {
+        'GET /api/senders': 'Get list of all senders',
+        'GET /api/subscriptions': 'Get user subscriptions'
+      },
+      subscriptions: {
+        'POST /api/newsletters/subscribe': 'Subscribe to a newsletter',
+        'POST /api/newsletters/unsubscribe': 'Unsubscribe from a newsletter',
+        'POST /api/subscriptions/sync': 'Sync multiple subscription changes',
+        'POST /subscriptions/toggle': 'Toggle subscription status'
+      },
+      gmail: {
+        'POST /api/backfill': 'Backfill Gmail messages',
+        'POST /api/trigger-initial-scan': 'Trigger initial sender scan',
+        'GET /api/rescan': 'Rescan and refresh sender list'
+      },
+      notifications: {
+        'GET /api/notification-settings': 'Get notification settings',
+        'POST /notification-settings/sync': 'Sync notification settings'
+      },
+      devices: {
+        'POST /devices': 'Register FCM device token'
+      },
+      health: {
+        'GET /health': 'Basic health check',
+        'GET /health/detailed': 'Detailed health check with service status',
+        'GET /test': 'Simple connectivity test',
+        'GET /debug/auth': 'Debug authentication status'
+      }
+    },
+    authentication: {
+      type: 'Bearer Token',
+      header: 'Authorization: Bearer <jwt_token>',
+      note: 'Most endpoints require authentication except /health, /test, /login, and /auth/refresh'
+    },
+    errorCodes: {
+      400: 'Bad Request - Invalid input data',
+      401: 'Unauthorized - Invalid or missing token',
+      403: 'Forbidden - Insufficient permissions',
+      404: 'Not Found - Resource not found',
+      409: 'Conflict - Resource already exists or conflict detected',
+      422: 'Unprocessable Entity - Validation failed',
+      429: 'Too Many Requests - Rate limit exceeded',
+      500: 'Internal Server Error - Server error',
+      502: 'Bad Gateway - Upstream service error',
+      503: 'Service Unavailable - Service temporarily unavailable',
+      504: 'Gateway Timeout - Upstream service timeout'
+    }
+  };
+  
+  res.json(apiDocs);
+});
 
 // Simple test endpoint for mobile connectivity
 app.get('/test', (req, res) => {
@@ -431,7 +633,11 @@ const iosOauth2Client = new google.auth.OAuth2(
   'com.googleusercontent.apps.493373719535-v990sc2u46lgga6nkbt962isqr7518ni'
 )
 
-const scopes = ['https://www.googleapis.com/auth/gmail.readonly']
+const scopes = [
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/userinfo.profile',
+  'https://www.googleapis.com/auth/userinfo.email'
+]
 
 // --- AUTHENTICATION ROUTES ---
 app.get('/auth', (req, res) => {
@@ -457,7 +663,25 @@ app.get('/oauth2callback', async (req, res) => {
       headers: { 'Authorization': `Bearer ${tokens.access_token}` }
     }).then(res => res.json())
 
+    console.log('[OAUTH] User info received:', userInfo)
+    
+    if (!userInfo.id) {
+      console.error('[OAUTH] No Google ID in user info:', userInfo)
+      return res.status(400).json({ error: 'No Google ID received from OAuth' })
+    }
+
     const user = await findOrCreateUser(userInfo.id, userInfo.email)
+
+    // Store the refresh token if we have one
+    if (tokens.refresh_token) {
+      console.log('[OAUTH] Storing refresh token for user:', user.id)
+      await pool.query(
+        'UPDATE users SET google_refresh_token = $1 WHERE id = $2',
+        [tokens.refresh_token, user.id]
+      )
+    } else {
+      console.log('[OAUTH] No refresh token received from OAuth flow')
+    }
 
     const jwtToken = jwt.sign(
       { userId: user.id, email: user.email },
@@ -520,12 +744,18 @@ app.get('/api/messages', authenticateToken, async (req, res) => {
       LIMIT $1 OFFSET $2
     `, [limit, offset])
 
+    console.log('[API] Messages query result:', {
+      rowCount: messages.rowCount,
+      rowsLength: messages.rows?.length,
+      sampleRow: messages.rows?.[0]
+    });
+    
     res.json({
-      messages: messages.rows,
+      messages: messages.rows || [],
       pagination: {
         page,
         limit,
-        total: messages.rowCount
+        total: messages.rowCount || 0
       }
     })
   } catch (error) {
@@ -674,6 +904,255 @@ app.get('/api/subscriptions', authenticateToken, async (req, res) => {
   }
 });
 
+// Sync multiple subscription changes
+app.post('/api/subscriptions/sync', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { subscriptions } = req.body;
+
+    if (!Array.isArray(subscriptions)) {
+      return res.status(400).json({ error: 'Subscriptions must be an array' });
+    }
+
+    console.log(`[SUBSCRIPTIONS] Syncing ${subscriptions.length} subscription changes for user ${userId}`);
+
+    // Process each subscription change
+    for (const change of subscriptions) {
+      const { senderId, isActive } = change;
+
+      if (typeof senderId !== 'number' || typeof isActive !== 'boolean') {
+        console.warn(`[SUBSCRIPTIONS] Invalid change format:`, change);
+        continue;
+      }
+
+      if (isActive) {
+        // Subscribe - insert or update subscription to active
+        await pool.query(`
+          INSERT INTO subscriptions (user_id, sender_id, is_active, created_at, updated_at)
+          VALUES ($1, $2, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT (user_id, sender_id)
+          DO UPDATE SET is_active = true, updated_at = CURRENT_TIMESTAMP
+        `, [userId, senderId]);
+      } else {
+        // Unsubscribe - set subscription to inactive
+        await pool.query(`
+          INSERT INTO subscriptions (user_id, sender_id, is_active, created_at, updated_at)
+          VALUES ($1, $2, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT (user_id, sender_id)
+          DO UPDATE SET is_active = false, updated_at = CURRENT_TIMESTAMP
+        `, [userId, senderId]);
+      }
+    }
+
+    console.log(`[SUBSCRIPTIONS] Successfully synced ${subscriptions.length} changes`);
+    res.json({ success: true, synced: subscriptions.length });
+
+  } catch (error) {
+    console.error('Error syncing subscriptions:', error);
+    res.status(500).json({ error: 'Failed to sync subscriptions' });
+  }
+});
+
+// Rescan endpoint for refreshing sender list
+app.get('/api/rescan', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log('[RESCAN] Triggering rescan for user:', userId);
+    
+    // Get user's refresh token
+    const userResult = await pool.query(
+      'SELECT google_refresh_token FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const refreshToken = userResult.rows[0].google_refresh_token;
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'No refresh token available. Please re-authenticate.' });
+    }
+    
+    // Trigger the initial sender scan
+    await initialSenderScan(userId, refreshToken);
+    
+    res.json({ success: true, message: 'Rescan completed successfully' });
+  } catch (error) {
+    console.error('Error during rescan:', error);
+    res.status(500).json({ error: 'Failed to rescan senders' });
+  }
+});
+
+// Notification settings endpoints
+app.get('/api/notification-settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const result = await pool.query(
+      'SELECT push_notifications_enabled FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    res.json({
+      pushNotifications: user.push_notifications_enabled,
+      notificationSound: true, // Default
+      notificationFrequency: 'immediate', // Default
+      quietHoursEnabled: false, // Default
+      quietHoursStart: '22:00', // Default
+      quietHoursEnd: '08:00' // Default
+    });
+  } catch (error) {
+    console.error('Error fetching notification settings:', error);
+    res.status(500).json({ error: 'Failed to fetch notification settings' });
+  }
+});
+
+app.post('/notification-settings/sync', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { pushNotifications, notificationSound, notificationFrequency, quietHoursEnabled, quietHoursStart, quietHoursEnd } = req.body;
+    
+    await pool.query(
+      'UPDATE users SET push_notifications_enabled = $1 WHERE id = $2',
+      [pushNotifications, userId]
+    );
+    
+    // Store other settings in a separate table or JSON field if needed
+    // For now, just update the push notifications setting
+    
+    res.json({ success: true, message: 'Notification settings synced successfully' });
+  } catch (error) {
+    console.error('Error syncing notification settings:', error);
+    res.status(500).json({ error: 'Failed to sync notification settings' });
+  }
+});
+
+// Subscription toggle endpoint
+app.post('/subscriptions/toggle', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { senderId, isActive } = req.body;
+    
+    if (!senderId || typeof isActive !== 'boolean') {
+      return res.status(400).json({ error: 'Invalid request data' });
+    }
+    
+    if (isActive) {
+      // Subscribe
+      await pool.query(`
+        INSERT INTO subscriptions (user_id, sender_id, is_active, created_at, updated_at)
+        VALUES ($1, $2, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id, sender_id)
+        DO UPDATE SET is_active = true, updated_at = CURRENT_TIMESTAMP
+      `, [userId, senderId]);
+    } else {
+      // Unsubscribe
+      await pool.query(`
+        INSERT INTO subscriptions (user_id, sender_id, is_active, created_at, updated_at)
+        VALUES ($1, $2, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id, sender_id)
+        DO UPDATE SET is_active = false, updated_at = CURRENT_TIMESTAMP
+      `, [userId, senderId]);
+    }
+    
+    res.json({ success: true, message: `Subscription ${isActive ? 'activated' : 'deactivated'} successfully` });
+  } catch (error) {
+    console.error('Error toggling subscription:', error);
+    res.status(500).json({ error: 'Failed to toggle subscription' });
+  }
+});
+
+// Gmail refresh endpoint
+app.post('/auth/refresh-gmail', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log('[GMAIL_REFRESH] Refreshing Gmail access for user:', userId);
+    
+    // Get user's refresh token
+    const userResult = await pool.query(
+      'SELECT google_refresh_token FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const refreshToken = userResult.rows[0].google_refresh_token;
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'No refresh token available. Please re-authenticate.' });
+    }
+    
+    // Set up Gmail API client
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET
+    );
+    
+    oauth2Client.setCredentials({
+      refresh_token: refreshToken
+    });
+    
+    // Get new access token
+    const { credentials } = await oauth2Client.refreshAccessToken();
+    
+    // Store the new access token temporarily
+    const expiryTime = Math.floor((Date.now() + (3600 * 1000)) / 1000); // 1 hour from now in seconds
+    await pool.query(
+      'UPDATE users SET temp_access_token = $1, temp_token_expiry = $2 WHERE id = $3',
+      [credentials.access_token, expiryTime, userId]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Gmail access refreshed successfully',
+      accessToken: credentials.access_token
+    });
+  } catch (error) {
+    console.error('Error refreshing Gmail access:', error);
+    res.status(500).json({ error: 'Failed to refresh Gmail access' });
+  }
+});
+
+// Token refresh endpoint
+app.post('/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token is required' });
+    }
+    
+    // Verify the refresh token
+    jwt.verify(refreshToken, REFRESH_JWT_SECRET, async (err, decoded) => {
+      if (err) {
+        return res.status(403).json({ error: 'Invalid or expired refresh token' });
+      }
+      
+      // Generate new access token
+      const newAccessToken = jwt.sign(
+        { userId: decoded.userId, email: decoded.email }, 
+        JWT_SECRET, 
+        { expiresIn: '15m' }
+      );
+      
+      res.json({ 
+        accessToken: newAccessToken,
+        expiresIn: 900 // 15 minutes in seconds
+      });
+    });
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    res.status(500).json({ error: 'Failed to refresh token' });
+  }
+});
+
 // Mobile app login endpoint - exchange Google ID token for app JWT
 app.post('/login', async (req, res) => {
   try {
@@ -728,9 +1207,11 @@ app.post('/login', async (req, res) => {
     if (accessToken) {
       logAuth('INFO', 'Storing access token for immediate Gmail API access', { userId: user.id });
 
+      const expiryTime = Math.floor((Date.now() + (3600 * 1000)) / 1000); // 1 hour from now in seconds
+      
       await pool.query(
         'UPDATE users SET temp_access_token = $1, temp_token_expiry = $2 WHERE id = $3',
-        [accessToken, Date.now() + (3600 * 1000), user.id] // 1 hour expiry
+        [accessToken, expiryTime, user.id] // 1 hour expiry (Unix timestamp)
       );
 
       logAuth('SUCCESS', 'Access token stored for Gmail API access', { userId: user.id });
@@ -740,13 +1221,14 @@ app.post('/login', async (req, res) => {
     let refreshToken = null;
 
     // Check if user already has a refresh token from a previous successful exchange
+    logAuth('INFO', 'Checking for existing refresh token', { userId: user.id });
     const existingUser = await pool.query(
       'SELECT google_refresh_token FROM users WHERE id = $1',
       [user.id]
     );
 
     if (existingUser.rows.length > 0 && existingUser.rows[0].google_refresh_token) {
-      logAuth('INFO', 'User already has a refresh token from previous login', { userId: user.id });
+      logAuth('INFO', 'User already has a refresh token from previous login', { userId: user.id, hasRefreshToken: true });
       refreshToken = existingUser.rows[0].google_refresh_token;
     } else {
       // Attempt to get a refresh token using the authorization code
@@ -764,7 +1246,8 @@ app.post('/login', async (req, res) => {
           if (refreshToken) {
             logAuth('SUCCESS', 'Refresh token obtained successfully via OAuth2 exchange', {
               refreshTokenSnippet: snippet(refreshToken),
-              userId: user.id
+              userId: user.id,
+              hasRefreshToken: true
             });
 
             // Store the refresh token for future use
@@ -776,7 +1259,8 @@ app.post('/login', async (req, res) => {
             logAuth('SUCCESS', 'Refresh token saved to database for long-term access', { userId: user.id });
           } else {
             logAuth('WARN', 'No refresh token received from OAuth2 exchange - will use access token', {
-              userId: user.id
+              userId: user.id,
+              hasRefreshToken: false
             });
           }
         } catch (error) {
@@ -802,6 +1286,13 @@ app.post('/login', async (req, res) => {
         });
       }
     }
+
+    // Log final refresh token status
+    logAuth('INFO', 'Login process completed', { 
+      userId: user.id, 
+      hasRefreshToken: !!refreshToken,
+      refreshTokenSource: refreshToken ? 'existing_or_new' : 'none'
+    });
 
     // If this is the first time and we have a refresh token, trigger the initial sender scan
     if (!user.initial_scan_complete && refreshToken) {
@@ -856,6 +1347,487 @@ app.post('/login', async (req, res) => {
 app.use((error, req, res, next) => {
   console.error('Unhandled error:', error)
   res.status(500).json({ error: 'Internal server error' })
+})
+
+// --- GMAIL HELPER FUNCTIONS ---
+
+// Extract sender email from Gmail headers (newsletter detection)
+function getSenderFromHeaders(headers) {
+  const hasListUnsubscribe = headers.some(
+    h => h.name.toLowerCase() === 'list-unsubscribe'
+  );
+
+  const isBulk = headers.some(
+    h => h.name.toLowerCase() === 'precedence' && h.value.toLowerCase() === 'bulk'
+  );
+
+  if (hasListUnsubscribe || isBulk) {
+    const fromHeader = headers.find(h => h.name.toLowerCase() === 'from');
+    return fromHeader ? fromHeader.value : null;
+  }
+  return null;
+}
+
+// Find or create sender in PostgreSQL
+async function findOrCreateSender(fullFromHeader, listId = null) {
+  try {
+    // Parse the email address and name from the full 'From' header
+    let email;
+    let name;
+    const emailMatch = fullFromHeader.match(/<([^>]+)>/);
+    if (emailMatch) {
+      email = emailMatch[1].toLowerCase().trim();
+      // Clean up the name part
+      name = fullFromHeader.split('<')[0].trim().replace(/"/g, '');
+    } else {
+      email = fullFromHeader.trim().toLowerCase();
+      name = email.split('@')[0]; // Simple fallback for name
+    }
+
+    // Derive fallback listId from name when absent
+    if (!listId) {
+      listId = name.toLowerCase().replace(/\s+/g, '');
+    }
+
+    // Check if this sender already exists (email + listId)
+    const query = `SELECT * FROM senders WHERE email = $1 AND COALESCE(list_id,'') = COALESCE($2, '')`;
+    const result = await pool.query(query, [email, listId]);
+    
+    if (result.rows.length > 0) {
+      return result.rows[0]; // It exists, return it
+    }
+
+    // Create new sender
+    const insertQuery = `
+      INSERT INTO senders (name, email, list_id, created_at, updated_at) 
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
+      RETURNING *
+    `;
+    const insertResult = await pool.query(insertQuery, [name, email, listId]);
+    return insertResult.rows[0];
+  } catch (error) {
+    console.error('Error in findOrCreateSender:', error);
+    throw error;
+  }
+}
+
+// Save message to PostgreSQL
+async function saveMessage(senderId, gmailId, subject, bodyHtml, dateIso = null) {
+  try {
+    const query = `
+      INSERT INTO messages (sender_id, gmail_id, subject, body_html, received_at, is_read) 
+      VALUES ($1, $2, $3, $4, $5, FALSE)
+      ON CONFLICT (gmail_id) DO NOTHING
+      RETURNING id
+    `;
+    
+    // Normalize date input to a valid ISO string
+    const normalizeDate = (val) => {
+      if (!val) return new Date();
+      const num = Number(val);
+      if (!isNaN(num)) {
+        const millis = num < 1e12 ? num * 1000 : num;
+        const d = new Date(millis);
+        return isNaN(d.getTime()) ? new Date() : d;
+      }
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? new Date() : d;
+    };
+
+    const received = normalizeDate(dateIso).toISOString();
+    const result = await pool.query(query, [senderId, gmailId, subject, bodyHtml, received]);
+    
+    // Return true if a new row was inserted, false if it already existed
+    return result.rows.length > 0;
+  } catch (error) {
+    console.error('Error in saveMessage:', error);
+    throw error;
+  }
+}
+
+// Recursively extract HTML body from Gmail message payload
+function extractHtml(payload) {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/html' && payload.body && payload.body.data) {
+    let data = payload.body.data;
+    // Gmail uses web-safe base64url. Convert to standard base64.
+    data = data.replace(/-/g, '+').replace(/_/g, '/');
+    while (data.length % 4) data += '=';
+    return Buffer.from(data, 'base64').toString('utf8');
+  }
+  if (payload.parts && Array.isArray(payload.parts)) {
+    for (const part of payload.parts) {
+      const html = extractHtml(part);
+      if (html) return html;
+    }
+  }
+  return '';
+}
+
+// --- INITIAL SENDER SCAN FUNCTION ---
+async function initialSenderScan(userId, authClient) {
+  try {
+    console.log('[INITIAL_SCAN] Fetching recent messages for initial scan...');
+    const gmail = google.gmail({ version: 'v1', auth: authClient });
+
+    // A set to collect unique sender email addresses
+    const uniqueSenders = new Set();
+
+    // First, list messages to get their IDs
+    const listResponse = await gmail.users.messages.list({
+      userId: 'me',
+      maxResults: 300, // Scan a larger number of recent emails
+    });
+
+    if (!listResponse.data.messages || listResponse.data.messages.length === 0) {
+      console.log('[INITIAL_SCAN] No recent messages found for initial scan.');
+      return;
+    }
+
+    // Process messages in batches to avoid overwhelming the API
+    for (let i = 0; i < listResponse.data.messages.length; i += 20) {
+      const batch = listResponse.data.messages.slice(i, i + 20);
+      const promises = batch.map(async msg => {
+        try {
+          const msgDetails = await gmail.users.messages.get({
+            userId: 'me',
+            id: msg.id,
+            format: 'metadata', // We only need headers for this
+            metadataHeaders: ['From', 'List-Unsubscribe'],
+          });
+          const sender = getSenderFromHeaders(msgDetails.data.payload.headers);
+          if (sender) {
+            uniqueSenders.add(sender);
+          }
+        } catch (e) {
+          // Ignore individual message errors
+        }
+      });
+      await Promise.all(promises);
+      console.log(`[INITIAL_SCAN] Processed batch ${i / 20 + 1}... Found ${uniqueSenders.size} unique senders so far.`);
+    }
+
+    console.log(`[INITIAL_SCAN] Scan complete. Found ${uniqueSenders.size} unique newsletter senders.`);
+
+    // Now, populate the database
+    for (const senderEmail of uniqueSenders) {
+      const sender = await findOrCreateSender(senderEmail, null);
+      if (sender) {
+        // This will create a new subscription, defaulted to ACTIVE
+        await findOrCreateSubscription(userId, sender.id, true);
+      }
+    }
+
+    // Mark initial scan as complete
+    await pool.query(
+      'UPDATE users SET initial_scan_complete = true WHERE id = $1',
+      [userId]
+    );
+
+    console.log('[INITIAL_SCAN] Initial scan completed successfully');
+  } catch (error) {
+    console.error('[INITIAL_SCAN] Error during initial scan:', error);
+    throw error;
+  }
+}
+
+// --- GMAIL BACKFILL ENDPOINT ---
+app.post('/api/backfill', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log('[BACKFILL] Starting Gmail backfill for user:', userId);
+    
+    // Get user's refresh token
+    const userResult = await pool.query(
+      'SELECT google_refresh_token FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const refreshToken = userResult.rows[0].google_refresh_token;
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'No refresh token available. Please re-authenticate.' });
+    }
+    
+    // Set up Gmail API client
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET
+    );
+    
+    oauth2Client.setCredentials({
+      refresh_token: refreshToken
+    });
+    
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+    
+    // Get active subscriptions for this user
+    const subscriptionsResult = await pool.query(`
+      SELECT s.email 
+      FROM subscriptions sub 
+      JOIN senders s ON sub.sender_id = s.id 
+      WHERE sub.user_id = $1 AND sub.is_active = true
+    `, [userId]);
+    
+    const activeSubscriptions = subscriptionsResult.rows.map(row => row.email);
+    
+    if (activeSubscriptions.length === 0) {
+      return res.json({ 
+        success: true, 
+        message: 'No active subscriptions found. Please subscribe to some newsletters first.',
+        messagesFound: 0
+      });
+    }
+    
+    // Construct Gmail search query for the last 7 days from these senders
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const formattedDate = sevenDaysAgo.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    const fromQueries = activeSubscriptions.map(email => `from:(${email})`).join(' OR ');
+    const searchQuery = `(${fromQueries}) after:${formattedDate}`;
+    
+    console.log(`[BACKFILL] Gmail search query: ${searchQuery}`);
+    
+    // Search Gmail
+    const listResponse = await gmail.users.messages.list({
+      userId: 'me',
+      q: searchQuery,
+      maxResults: 100, // Limit to 100 recent messages for performance
+    });
+    
+    const messages = listResponse.data.messages;
+    if (!messages || messages.length === 0) {
+      console.log('[BACKFILL] No messages found for backfill.');
+      return res.json({ 
+        success: true, 
+        message: 'No new messages found in the last 7 days.',
+        messagesFound: 0
+      });
+    }
+    
+    // Process and save each found message
+    let importedCount = 0;
+    let skippedCount = 0;
+    
+    for (const msg of messages) {
+      try {
+        const msgDetails = await gmail.users.messages.get({
+          userId: 'me',
+          id: msg.id,
+          format: 'full',
+        });
+        
+        const senderEmail = getSenderFromHeaders(msgDetails.data.payload.headers);
+        const listIdHeader = msgDetails.data.payload.headers.find(h => h.name.toLowerCase() === 'list-id');
+        const listId = listIdHeader ? listIdHeader.value.toLowerCase().trim() : null;
+        
+        if (senderEmail) {
+          const sender = await findOrCreateSender(senderEmail, listId);
+          const subject = msgDetails.data.payload.headers.find(h => h.name === 'Subject')?.value || 'No Subject';
+          const bodyHtml = extractHtml(msgDetails.data.payload);
+          
+          // Save message (will skip if already exists due to gmail_id unique constraint)
+          const wasImported = await saveMessage(sender.id, msg.id, subject, bodyHtml, msgDetails.data.internalDate);
+          if (wasImported) {
+            importedCount++;
+          } else {
+            skippedCount++;
+          }
+        }
+      } catch (error) {
+        console.error(`[BACKFILL] Error processing message ${msg.id}:`, error);
+        skippedCount++;
+      }
+    }
+    
+    console.log(`[BACKFILL] Complete. Imported: ${importedCount}, Skipped: ${skippedCount}`);
+    
+    res.json({ 
+      success: true, 
+      message: `Backfill complete. Found ${messages.length} messages, imported ${importedCount} new ones.`,
+      messagesFound: messages.length,
+      importedCount,
+      skippedCount
+    });
+    
+  } catch (error) {
+    console.error('[BACKFILL] Error during backfill:', error);
+    res.status(500).json({ error: 'Backfill failed: ' + error.message });
+  }
+});
+
+// --- INDIVIDUAL MESSAGE ENDPOINTS ---
+app.get('/api/messages/:id', authenticateToken, async (req, res) => {
+  try {
+    const messageId = parseInt(req.params.id);
+    const userId = req.user.userId;
+    
+    const result = await pool.query(`
+      SELECT m.*, s.name as sender_name, s.email as sender_email
+      FROM messages m
+      JOIN senders s ON m.sender_id = s.id
+      WHERE m.id = $1
+    `, [messageId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+    
+    const message = result.rows[0];
+    res.json(message);
+  } catch (error) {
+    console.error('Error fetching message:', error);
+    res.status(500).json({ error: 'Failed to fetch message' });
+  }
+});
+
+app.post('/api/messages/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const messageId = parseInt(req.params.id);
+    const userId = req.user.userId;
+    
+    await pool.query(
+      'UPDATE messages SET is_read = true WHERE id = $1',
+      [messageId]
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking message as read:', error);
+    res.status(500).json({ error: 'Failed to mark message as read' });
+  }
+});
+
+app.post('/api/messages/:id/unread', authenticateToken, async (req, res) => {
+  try {
+    const messageId = parseInt(req.params.id);
+    const userId = req.user.userId;
+    
+    await pool.query(
+      'UPDATE messages SET is_read = false WHERE id = $1',
+      [messageId]
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking message as unread:', error);
+    res.status(500).json({ error: 'Failed to mark message as unread' });
+  }
+});
+
+// --- TRIGGER INITIAL SCAN ENDPOINT ---
+app.post('/api/trigger-initial-scan', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log('[TRIGGER_SCAN] Manually triggering initial scan for user:', userId);
+    
+    // Get user's refresh token
+    const userResult = await pool.query(
+      'SELECT google_refresh_token FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const refreshToken = userResult.rows[0].google_refresh_token;
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'No refresh token available. Please re-authenticate.' });
+    }
+    
+    // Set up Gmail API client
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET
+    );
+    
+    oauth2Client.setCredentials({
+      refresh_token: refreshToken
+    });
+    
+    // Run the initial scan
+    await initialSenderScan(userId, oauth2Client);
+    
+    res.json({ 
+      success: true, 
+      message: 'Initial scan completed successfully' 
+    });
+    
+  } catch (error) {
+    console.error('[TRIGGER_SCAN] Error during initial scan:', error);
+    res.status(500).json({ error: 'Initial scan failed: ' + error.message });
+  }
+});
+
+// --- DEBUG AUTH ENDPOINT ---
+app.get('/debug/auth', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userResult = await pool.query(
+      'SELECT id, email, google_id, initial_scan_complete, google_refresh_token FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    res.json({
+      authenticated: true,
+      userId: user.id,
+      email: user.email,
+      googleId: user.google_id,
+      initialScanComplete: user.initial_scan_complete,
+      hasRefreshToken: !!user.google_refresh_token
+    });
+    
+  } catch (error) {
+    console.error('Error in debug auth:', error);
+    res.status(500).json({ error: 'Debug auth failed' });
+  }
+});
+
+// --- DEVICE REGISTRATION ENDPOINT ---
+app.post('/devices', authenticateToken, async (req, res) => {
+  try {
+    const { fcmToken } = req.body
+    const userId = req.user.userId
+
+    if (!fcmToken) {
+      return res.status(400).json({ error: 'FCM token is required' })
+    }
+
+    // Check if device already exists
+    const existingDevice = await pool.query(
+      'SELECT id FROM devices WHERE fcm_token = $1',
+      [fcmToken]
+    )
+
+    if (existingDevice.rows.length > 0) {
+      // Update existing device
+      await pool.query(
+        'UPDATE devices SET user_id = $1, created_at = CURRENT_TIMESTAMP WHERE fcm_token = $2',
+        [userId, fcmToken]
+      )
+    } else {
+      // Insert new device
+      await pool.query(
+        'INSERT INTO devices (user_id, fcm_token) VALUES ($1, $2)',
+        [userId, fcmToken]
+      )
+    }
+
+    res.json({ success: true, message: 'Device registered successfully' })
+  } catch (error) {
+    console.error('Error registering device:', error)
+    res.status(500).json({ error: 'Failed to register device' })
+  }
 })
 
 // --- SERVER STARTUP ---
