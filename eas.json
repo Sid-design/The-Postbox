@@ -1,0 +1,47 @@
+{
+  "cli": {
+    "version": ">= 16.17.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "workingDirectory": "./mobile",
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_APP_VARIANT": "development",
+        "EXPO_PUBLIC_APP_NAME": "The Postbox (Dev)",
+        "EXPO_BABEL_NO_ADD_REANIMATED_PLUGIN": "1"
+      }
+    },
+
+    "preview": {
+      "workingDirectory": "./mobile",
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_APP_VARIANT": "development",
+        "EXPO_PUBLIC_APP_NAME": "The Postbox (Preview)"
+      }
+    },
+
+    "production": {
+      "workingDirectory": "./mobile",
+      "distribution": "store",
+      "autoIncrement": true,
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_APP_VARIANT": "production",
+        "EXPO_PUBLIC_APP_NAME": "The Postbox"
+      }
+    }
+  }
+ 
+}

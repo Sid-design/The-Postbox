@@ -72,13 +72,7 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_sender_id ON subscriptions(sender_id);
 CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
 
--- Insert some sample data for development
-INSERT INTO senders (name, email, description, category, subscriber_count, featured) VALUES
-('TechCrunch', 'noreply@techcrunch.com', 'Latest technology news and startup coverage', 'Technology', 1500000, TRUE),
-('The Hustle', 'hello@thehustle.co', 'Business news and startup insights', 'Business', 800000, TRUE),
-('Morning Brew', 'hello@morningbrew.com', 'Daily business newsletter', 'Business', 2000000, TRUE),
-('Product Hunt', 'hello@producthunt.com', 'Discover the latest products and startups', 'Technology', 500000, FALSE)
-ON CONFLICT (email, list_id) DO NOTHING;
+-- Sample data removed - newsletters will be dynamically discovered from user Gmail
 
 -- Create a function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

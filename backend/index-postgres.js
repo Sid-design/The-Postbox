@@ -244,76 +244,13 @@ async function initializeDatabase() {
 
     console.log('PostgreSQL database tables initialized successfully')
 
-    // Seed newsletters after table setup (skip in test environment)
-    if (process.env.NODE_ENV !== 'test') {
-      setTimeout(seedDiscoverableNewsletters, 1000);
-    }
+    // Sample data seeding removed - newsletters will be dynamically discovered from Gmail
   } catch (err) {
     console.error('Error initializing PostgreSQL database:', err)
   }
 }
 
-// Seed discoverable newsletters
-async function seedDiscoverableNewsletters() {
-  // Skip seeding in test environment
-  if (process.env.NODE_ENV === 'test') {
-    return;
-  }
-  const newsletters = [
-    // Technology
-    {
-      name: 'Hacker News Daily',
-      email: 'daily@hackernews.example',
-      description: 'Top tech stories and discussions from Hacker News community.',
-      category: 'Technology',
-      subscriber_count: 12500,
-      featured: true
-    },
-    {
-      name: 'The Verge',
-      email: 'newsletter@theverge.com',
-      description: 'Tech news that matters, delivered daily.',
-      category: 'Technology',
-      subscriber_count: 85000,
-      featured: true
-    },
-    {
-      name: 'TechCrunch Daily',
-      email: 'daily@techcrunch.com',
-      description: 'The latest technology news and startup funding information.',
-      category: 'Technology',
-      subscriber_count: 75000,
-      featured: false
-    },
-    // Add more newsletters as needed...
-  ]
-
-  for (const newsletter of newsletters) {
-    try {
-      await pool.query(`
-        INSERT INTO senders (name, email, description, category, subscriber_count, featured)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (email) DO UPDATE SET
-          name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          category = EXCLUDED.category,
-          subscriber_count = EXCLUDED.subscriber_count,
-          featured = EXCLUDED.featured,
-          updated_at = CURRENT_TIMESTAMP
-      `, [
-        newsletter.name,
-        newsletter.email,
-        newsletter.description,
-        newsletter.category,
-        newsletter.subscriber_count,
-        newsletter.featured
-      ])
-      console.log(`✅ Newsletter ${newsletter.name} seeded/updated successfully`)
-    } catch (error) {
-      console.error(`❌ Error seeding newsletter ${newsletter.name}:`, error.message)
-    }
-  }
-}
+// Sample newsletter seeding removed - newsletters will be dynamically discovered from Gmail
 
 // --- AUTHENTICATION FUNCTIONS ---
 async function findOrCreateUser(googleId, email) {
@@ -1073,46 +1010,68 @@ app.post('/auth/refresh-gmail', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     console.log('[GMAIL_REFRESH] Refreshing Gmail access for user:', userId);
-    
-    // Get user's refresh token
+
+    // First, try to use refresh token if available
     const userResult = await pool.query(
-      'SELECT google_refresh_token FROM users WHERE id = $1',
+      'SELECT google_refresh_token, temp_access_token, temp_token_expiry FROM users WHERE id = $1',
       [userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    const refreshToken = userResult.rows[0].google_refresh_token;
-    if (!refreshToken) {
-      return res.status(400).json({ error: 'No refresh token available. Please re-authenticate.' });
+
+    const user = userResult.rows[0];
+    const currentTime = Math.floor(Date.now() / 1000);
+
+    // Check if we have a valid access token
+    if (user.temp_access_token && user.temp_token_expiry && user.temp_token_expiry > currentTime) {
+      console.log('[GMAIL_REFRESH] Using existing valid access token');
+      return res.json({
+        success: true,
+        message: 'Using existing access token',
+        accessToken: user.temp_access_token,
+        expiresIn: user.temp_token_expiry - currentTime
+      });
     }
-    
-    // Set up Gmail API client
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
-    );
-    
-    oauth2Client.setCredentials({
-      refresh_token: refreshToken
-    });
-    
-    // Get new access token
-    const { credentials } = await oauth2Client.refreshAccessToken();
-    
-    // Store the new access token temporarily
-    const expiryTime = Math.floor((Date.now() + (3600 * 1000)) / 1000); // 1 hour from now in seconds
-    await pool.query(
-      'UPDATE users SET temp_access_token = $1, temp_token_expiry = $2 WHERE id = $3',
-      [credentials.access_token, expiryTime, userId]
-    );
-    
-    res.json({ 
-      success: true, 
-      message: 'Gmail access refreshed successfully',
-      accessToken: credentials.access_token
+
+    // Try refresh token first
+    if (user.google_refresh_token) {
+      try {
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET
+        );
+
+        oauth2Client.setCredentials({
+          refresh_token: user.google_refresh_token
+        });
+
+        const { credentials } = await oauth2Client.refreshAccessToken();
+
+        // Store the new access token temporarily
+        const expiryTime = Math.floor((Date.now() + (3600 * 1000)) / 1000); // 1 hour from now
+        await pool.query(
+          'UPDATE users SET temp_access_token = $1, temp_token_expiry = $2 WHERE id = $3',
+          [credentials.access_token, expiryTime, userId]
+        );
+
+        console.log('[GMAIL_REFRESH] Successfully refreshed using refresh token');
+        return res.json({
+          success: true,
+          message: 'Gmail access refreshed successfully',
+          accessToken: credentials.access_token
+        });
+      } catch (error) {
+        console.log('[GMAIL_REFRESH] Refresh token failed, will prompt re-auth:', error.message);
+      }
+    }
+
+    // If no refresh token or refresh failed, we need user to re-authenticate
+    console.log('[GMAIL_REFRESH] No valid refresh token available');
+    return res.status(401).json({
+      error: 'Gmail access expired. Please re-authenticate.',
+      needsReauth: true
     });
   } catch (error) {
     console.error('Error refreshing Gmail access:', error);
@@ -1153,10 +1112,120 @@ app.post('/auth/refresh', async (req, res) => {
   }
 });
 
+// Mobile app OAuth endpoint - handle the full OAuth flow for refresh tokens
+app.post('/auth/mobile-oauth', async (req, res) => {
+  try {
+    const { authCode, codeVerifier, clientId } = req.body;
+    
+    if (!authCode) {
+      return res.status(400).json({ error: 'Authorization code is required' });
+    }
+
+    logAuth('INFO', 'Starting mobile OAuth flow', { 
+      authCodeSnippet: snippet(authCode),
+      clientId: clientId || 'default',
+      hasCodeVerifier: !!codeVerifier
+    });
+
+    // Use the iOS client ID and redirect URI for mobile PKCE flow
+    const mobileClientId = clientId || '493373719535-v990sc2u46lgga6nkbt962isqr7518ni.apps.googleusercontent.com';
+    const mobileRedirectUri = 'com.googleusercontent.apps.493373719535-v990sc2u46lgga6nkbt962isqr7518ni:/oauth2redirect';
+    
+    // Set up OAuth2 client with mobile configuration
+    const oauth2Client = new google.auth.OAuth2(
+      mobileClientId,
+      null, // No client secret needed for mobile PKCE flow
+      mobileRedirectUri
+    );
+
+    // Exchange authorization code for tokens
+    const tokenResponse = await oauth2Client.getToken({
+      code: authCode,
+      code_verifier: codeVerifier, // For PKCE
+    });
+
+    const { tokens } = tokenResponse;
+    logAuth('SUCCESS', 'OAuth tokens obtained', { 
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      hasIdToken: !!tokens.id_token
+    });
+
+    // Verify the ID token
+    const ticket = await oauth2Client.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const userInfo = ticket.getPayload();
+    if (!userInfo || !userInfo.sub) {
+      return res.status(400).json({ error: 'Invalid ID token' });
+    }
+
+    logAuth('SUCCESS', 'ID token verified', { 
+      googleId: userInfo.sub, 
+      email: userInfo.email 
+    });
+
+    // Find or create user
+    const user = await findOrCreateUser(userInfo.sub, userInfo.email);
+
+    // Store the refresh token
+    if (tokens.refresh_token) {
+      await pool.query(
+        'UPDATE users SET google_refresh_token = $1 WHERE id = $2',
+        [tokens.refresh_token, user.id]
+      );
+      logAuth('SUCCESS', 'Refresh token stored', { userId: user.id });
+    }
+
+    // Store the access token temporarily
+    if (tokens.access_token) {
+      const expiryTime = Math.floor((Date.now() + (3600 * 1000)) / 1000);
+      await pool.query(
+        'UPDATE users SET temp_access_token = $1, temp_token_expiry = $2 WHERE id = $3',
+        [tokens.access_token, expiryTime, user.id]
+      );
+      logAuth('SUCCESS', 'Access token stored', { userId: user.id });
+    }
+
+    // Generate JWT for our app
+    const jwtToken = jwt.sign(
+      { userId: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    // Generate refresh token for our app
+    const appRefreshToken = jwt.sign(
+      { userId: user.id, email: user.email },
+      REFRESH_JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    logAuth('SUCCESS', 'Mobile OAuth completed', { 
+      userId: user.id, 
+      hasRefreshToken: !!tokens.refresh_token 
+    });
+
+    res.json({
+      token: jwtToken,
+      refreshToken: appRefreshToken,
+      expiresIn: 7 * 24 * 60 * 60, // 7 days in seconds
+      hasGmailRefreshToken: !!tokens.refresh_token
+    });
+
+  } catch (error) {
+    logAuth('ERROR', 'Mobile OAuth failed', { error: error.message });
+    console.error('Mobile OAuth error:', error);
+    res.status(500).json({ error: 'OAuth authentication failed' });
+  }
+});
+
 // Mobile app login endpoint - exchange Google ID token for app JWT
 app.post('/login', async (req, res) => {
   try {
-    const { idToken, accessToken, authCode } = req.body;
+    const { idToken, accessToken, refreshToken: mobileRefreshToken, authCode } = req.body;
 
     // For mobile OAuth2 flow, we can use the access token directly
     // Store it temporarily for Gmail API access
@@ -1170,6 +1239,7 @@ app.post('/login', async (req, res) => {
     logAuth('INFO', 'Login attempt started', {
       hasIdToken: !!idToken,
       hasAccessToken: !!accessToken,
+      hasMobileRefreshToken: !!mobileRefreshToken,
       hasAuthCode: !!authCode,
       authCodeLength: authCode ? authCode.length : 0,
       securityNote: 'PKCE enabled for enhanced mobile security'
@@ -1220,107 +1290,122 @@ app.post('/login', async (req, res) => {
     // For mobile OAuth2 flow, we need to handle refresh tokens properly
     let refreshToken = null;
 
-    // Check if user already has a refresh token from a previous successful exchange
-    logAuth('INFO', 'Checking for existing refresh token', { userId: user.id });
-    const existingUser = await pool.query(
-      'SELECT google_refresh_token FROM users WHERE id = $1',
-      [user.id]
-    );
+    // Priority 1: Use refresh token passed directly from mobile app (for PKCE flow)
+    if (mobileRefreshToken) {
+      logAuth('SUCCESS', 'Refresh token received directly from mobile app', {
+        refreshTokenSnippet: snippet(mobileRefreshToken),
+        userId: user.id
+      });
+      refreshToken = mobileRefreshToken;
 
-    if (existingUser.rows.length > 0 && existingUser.rows[0].google_refresh_token) {
-      logAuth('INFO', 'User already has a refresh token from previous login', { userId: user.id, hasRefreshToken: true });
-      refreshToken = existingUser.rows[0].google_refresh_token;
+      // Store the refresh token for future use
+      await pool.query(
+        'UPDATE users SET google_refresh_token = $1 WHERE id = $2',
+        [refreshToken, user.id]
+      );
+      logAuth('SUCCESS', 'Mobile refresh token saved to database', { userId: user.id });
     } else {
-      // Attempt to get a refresh token using the authorization code
-      if (authCode) {
-        try {
-          logAuth('INFO', 'Attempting to exchange authorization code for refresh token', {
-            userId: user.id,
-            authCodeSnippet: snippet(authCode)
-          });
+      // Handle mobile OAuth flow where refresh token is not available
+      logAuth('INFO', 'No refresh token from mobile app - this is expected for Expo Auth Session', {
+        userId: user.id,
+        note: 'Mobile apps typically don\'t get refresh tokens in initial OAuth response'
+      });
 
-          // For mobile apps, we need to handle the OAuth2 flow carefully
-          const tokenResponse = await oauth2Client.getToken(authCode);
-          refreshToken = tokenResponse.tokens.refresh_token;
+      // For mobile apps, we'll use the access token temporarily and implement a different strategy
+      logAuth('INFO', 'Mobile OAuth strategy: Using access token for immediate Gmail access', {
+        userId: user.id,
+        strategy: 'Store access token temporarily, prompt re-auth when needed'
+      });
+      // Priority 2: Check if user already has a refresh token from a previous successful exchange
+      logAuth('INFO', 'Checking for existing refresh token', { userId: user.id });
+      const existingUser = await pool.query(
+        'SELECT google_refresh_token FROM users WHERE id = $1',
+        [user.id]
+      );
 
-          if (refreshToken) {
-            logAuth('SUCCESS', 'Refresh token obtained successfully via OAuth2 exchange', {
-              refreshTokenSnippet: snippet(refreshToken),
-              userId: user.id,
-              hasRefreshToken: true
-            });
-
-            // Store the refresh token for future use
-            await pool.query(
-              'UPDATE users SET google_refresh_token = $1 WHERE id = $2',
-              [refreshToken, user.id]
-            );
-
-            logAuth('SUCCESS', 'Refresh token saved to database for long-term access', { userId: user.id });
-          } else {
-            logAuth('WARN', 'No refresh token received from OAuth2 exchange - will use access token', {
-              userId: user.id,
-              hasRefreshToken: false
-            });
-          }
-        } catch (error) {
-          // For mobile OAuth2 flow, this is often expected since the mobile app
-          // may have already exchanged the authorization code
-          if (error.message.includes('invalid_grant') || error.message.includes('Code was already redeemed')) {
-            logAuth('INFO', 'Authorization code already used by mobile app - using access token', {
-              userId: user.id
-            });
-          } else {
-            logAuth('WARN', 'OAuth2 token exchange failed unexpectedly', {
-              userId: user.id,
-              error: error.message
-            });
-          }
-
-          // Don't fail the login - we'll use the access token
-          // The refresh token can be obtained in a future login
-        }
+      if (existingUser.rows.length > 0 && existingUser.rows[0].google_refresh_token) {
+        logAuth('INFO', 'User already has a refresh token from previous login', { userId: user.id, hasRefreshToken: true });
+        refreshToken = existingUser.rows[0].google_refresh_token;
       } else {
-        logAuth('INFO', 'No authorization code provided - using access token only', {
-          userId: user.id
+        // For mobile OAuth, we don't have authCode to exchange since Expo handled it
+        logAuth('INFO', 'Mobile OAuth: No auth code available for exchange', {
+          userId: user.id,
+          reason: 'Expo Auth Session handles token exchange internally'
+        });
+
+        // Since we can't get a refresh token through the mobile flow,
+        // we'll implement a different strategy for Gmail access
+        logAuth('INFO', 'Implementing mobile Gmail access strategy', {
+          userId: user.id,
+          strategy: 'Use access token + implement refresh mechanism'
         });
       }
     }
 
     // Log final refresh token status
-    logAuth('INFO', 'Login process completed', { 
-      userId: user.id, 
+    logAuth('INFO', 'Login process completed', {
+      userId: user.id,
       hasRefreshToken: !!refreshToken,
-      refreshTokenSource: refreshToken ? 'existing_or_new' : 'none'
+      refreshTokenSource: mobileRefreshToken ? 'mobile_direct' : (refreshToken ? 'existing_or_exchanged' : 'none'),
+      mobileStrategy: !mobileRefreshToken ? 'access_token_only' : 'full_oauth'
     });
 
-    // If this is the first time and we have a refresh token, trigger the initial sender scan
-    if (!user.initial_scan_complete && refreshToken) {
-      logAuth('INFO', 'Initial scan not completed, starting scan with refresh token', { userId: user.id });
-      const authClient = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET
-      );
-      authClient.setCredentials({ refresh_token: refreshToken });
+    // If this is the first time, trigger the initial sender scan using available tokens
+    if (!user.initial_scan_complete) {
+      let authClient = null;
 
-      // Test the token and trigger initial scan
-      try {
-        await authClient.getAccessToken();
-        logAuth('SUCCESS', 'Refresh token validated, triggering initial scan', { userId: user.id });
-        initialSenderScan(user.id, authClient).catch(err => {
-          logAuth('ERROR', 'Error during initial sender scan', { error: err.message, userId: user.id });
-        });
-      } catch (error) {
-        logAuth('ERROR', 'Failed to authenticate with refresh token for initial scan', {
-          error: error.message,
-          userId: user.id
+      if (refreshToken) {
+        // Use refresh token if available
+        logAuth('INFO', 'Initial scan not completed, starting scan with refresh token', { userId: user.id });
+        authClient = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET
+        );
+        authClient.setCredentials({ refresh_token: refreshToken });
+      } else if (accessToken) {
+        // Use access token if refresh token is not available (mobile OAuth case)
+        logAuth('INFO', 'Initial scan not completed, starting scan with access token (mobile OAuth)', { userId: user.id });
+        authClient = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET
+        );
+        authClient.setCredentials({ access_token: accessToken });
+      }
+
+      if (authClient) {
+        // Test the token and trigger initial scan
+        try {
+          // For access tokens, we don't need to getAccessToken() - we already have it
+          if (refreshToken) {
+            await authClient.getAccessToken();
+          }
+          logAuth('SUCCESS', 'Token validated, triggering initial scan', { userId: user.id });
+
+          // Add detailed logging before calling initialSenderScan
+          console.log(`[INITIAL_SCAN_TRIGGER] About to call initialSenderScan for user ${user.id}`);
+          console.log(`[INITIAL_SCAN_TRIGGER] Auth client has credentials:`, !!authClient.credentials);
+          console.log(`[INITIAL_SCAN_TRIGGER] Access token present:`, !!authClient.credentials?.access_token);
+
+          initialSenderScan(user.id, authClient).then(() => {
+            console.log(`[INITIAL_SCAN_SUCCESS] Initial scan completed successfully for user ${user.id}`);
+          }).catch(err => {
+            console.error(`[INITIAL_SCAN_ERROR] Error during initial sender scan for user ${user.id}:`, err.message);
+            console.error(`[INITIAL_SCAN_ERROR] Full error:`, err);
+            logAuth('ERROR', 'Error during initial sender scan', { error: err.message, userId: user.id });
+          });
+        } catch (error) {
+          logAuth('ERROR', 'Failed to authenticate with token for initial scan', {
+            error: error.message,
+            userId: user.id
+          });
+        }
+      } else {
+        logAuth('WARN', 'No tokens available for initial scan', {
+          userId: user.id,
+          hasRefreshToken: !!refreshToken,
+          hasAccessToken: !!accessToken
         });
       }
-    } else if (!refreshToken) {
-      logAuth('WARN', 'No refresh token available for initial scan', {
-        userId: user.id,
-        initialScanComplete: user.initial_scan_complete
-      });
     }
 
     // Create our app-specific JWTs
@@ -1467,6 +1552,8 @@ function extractHtml(payload) {
 // --- INITIAL SENDER SCAN FUNCTION ---
 async function initialSenderScan(userId, authClient) {
   try {
+    console.log(`[INITIAL_SCAN_START] Starting initial scan for user ${userId}`);
+    console.log(`[INITIAL_SCAN_START] Auth client credentials:`, authClient.credentials);
     console.log('[INITIAL_SCAN] Fetching recent messages for initial scan...');
     const gmail = google.gmail({ version: 'v1', auth: authClient });
 
@@ -1474,9 +1561,15 @@ async function initialSenderScan(userId, authClient) {
     const uniqueSenders = new Set();
 
     // First, list messages to get their IDs
+    console.log('[INITIAL_SCAN] Making Gmail API call to list messages...');
     const listResponse = await gmail.users.messages.list({
       userId: 'me',
       maxResults: 300, // Scan a larger number of recent emails
+    });
+
+    console.log(`[INITIAL_SCAN] Gmail API response received:`, {
+      success: !!listResponse.data,
+      messageCount: listResponse.data?.messages?.length || 0
     });
 
     if (!listResponse.data.messages || listResponse.data.messages.length === 0) {
@@ -1536,32 +1629,72 @@ app.post('/api/backfill', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     console.log('[BACKFILL] Starting Gmail backfill for user:', userId);
-    
-    // Get user's refresh token
+
+    // Get user's tokens (refresh token or access token)
     const userResult = await pool.query(
-      'SELECT google_refresh_token FROM users WHERE id = $1',
+      'SELECT google_refresh_token, temp_access_token, temp_token_expiry FROM users WHERE id = $1',
       [userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    const refreshToken = userResult.rows[0].google_refresh_token;
-    if (!refreshToken) {
-      return res.status(400).json({ error: 'No refresh token available. Please re-authenticate.' });
+
+    const user = userResult.rows[0];
+    const currentTime = Math.floor(Date.now() / 1000);
+
+    let accessToken = null;
+
+    // Priority 1: Use valid access token if available
+    if (user.temp_access_token && user.temp_token_expiry && user.temp_token_expiry > currentTime) {
+      console.log('[BACKFILL] Using existing valid access token');
+      accessToken = user.temp_access_token;
     }
-    
-    // Set up Gmail API client
+    // Priority 2: Try to get new access token using refresh token
+    else if (user.google_refresh_token) {
+      try {
+        console.log('[BACKFILL] Getting new access token using refresh token');
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET
+        );
+
+        oauth2Client.setCredentials({
+          refresh_token: user.google_refresh_token
+        });
+
+        const { credentials } = await oauth2Client.refreshAccessToken();
+        accessToken = credentials.access_token;
+
+        // Store the new access token temporarily
+        const expiryTime = Math.floor((Date.now() + (3600 * 1000)) / 1000); // 1 hour from now
+        await pool.query(
+          'UPDATE users SET temp_access_token = $1, temp_token_expiry = $2 WHERE id = $3',
+          [accessToken, expiryTime, userId]
+        );
+        console.log('[BACKFILL] Access token refreshed and stored');
+      } catch (error) {
+        console.log('[BACKFILL] Failed to refresh access token:', error.message);
+      }
+    }
+
+    if (!accessToken) {
+      return res.status(401).json({
+        error: 'No valid Gmail access token available. Please re-authenticate.',
+        needsReauth: true
+      });
+    }
+
+    // Set up Gmail API client with access token
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET
     );
-    
+
     oauth2Client.setCredentials({
-      refresh_token: refreshToken
+      access_token: accessToken
     });
-    
+
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     
     // Get active subscriptions for this user
@@ -1719,45 +1852,146 @@ app.post('/api/messages/:id/unread', authenticateToken, async (req, res) => {
   }
 });
 
+// --- MANUAL TRIGGER INITIAL SCAN ENDPOINT ---
+app.post('/api/trigger-initial-scan-manual', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log(`[MANUAL_SCAN] Manually triggering initial scan for user: ${userId}`);
+
+    // Get user's tokens
+    const userResult = await pool.query(
+      'SELECT google_refresh_token, temp_access_token, temp_token_expiry, initial_scan_complete FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    console.log(`[MANUAL_SCAN] User status:`, {
+      hasRefreshToken: !!user.google_refresh_token,
+      hasAccessToken: !!user.temp_access_token,
+      initialScanComplete: user.initial_scan_complete
+    });
+
+    // Reset initial scan status for testing
+    await pool.query('UPDATE users SET initial_scan_complete = false WHERE id = $1', [userId]);
+    console.log(`[MANUAL_SCAN] Reset initial_scan_complete to false for testing`);
+
+    // Now trigger the scan logic
+    const currentTime = Math.floor(Date.now() / 1000);
+    let authClient = null;
+
+    if (user.google_refresh_token) {
+      console.log(`[MANUAL_SCAN] Using refresh token`);
+      authClient = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET
+      );
+      authClient.setCredentials({ refresh_token: user.google_refresh_token });
+    } else if (user.temp_access_token && user.temp_token_expiry && user.temp_token_expiry > currentTime) {
+      console.log(`[MANUAL_SCAN] Using access token`);
+      authClient = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET
+      );
+      authClient.setCredentials({ access_token: user.temp_access_token });
+    }
+
+    if (!authClient) {
+      return res.status(400).json({ error: 'No valid tokens available' });
+    }
+
+    // Run the initial scan
+    await initialSenderScan(userId, authClient);
+
+    res.json({
+      success: true,
+      message: 'Manual initial scan completed successfully'
+    });
+
+  } catch (error) {
+    console.error('[MANUAL_SCAN] Error during manual scan:', error);
+    res.status(500).json({ error: 'Manual scan failed: ' + error.message });
+  }
+});
+
 // --- TRIGGER INITIAL SCAN ENDPOINT ---
 app.post('/api/trigger-initial-scan', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     console.log('[TRIGGER_SCAN] Manually triggering initial scan for user:', userId);
-    
-    // Get user's refresh token
+
+    // Get user's tokens
     const userResult = await pool.query(
-      'SELECT google_refresh_token FROM users WHERE id = $1',
+      'SELECT google_refresh_token, temp_access_token, temp_token_expiry FROM users WHERE id = $1',
       [userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    const refreshToken = userResult.rows[0].google_refresh_token;
-    if (!refreshToken) {
-      return res.status(400).json({ error: 'No refresh token available. Please re-authenticate.' });
+
+    const user = userResult.rows[0];
+    const currentTime = Math.floor(Date.now() / 1000);
+
+    let accessToken = null;
+
+    // Try to get a valid access token
+    if (user.temp_access_token && user.temp_token_expiry && user.temp_token_expiry > currentTime) {
+      accessToken = user.temp_access_token;
+    } else if (user.google_refresh_token) {
+      try {
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET
+        );
+
+        oauth2Client.setCredentials({
+          refresh_token: user.google_refresh_token
+        });
+
+        const { credentials } = await oauth2Client.refreshAccessToken();
+        accessToken = credentials.access_token;
+
+        // Store the new access token
+        const expiryTime = Math.floor((Date.now() + (3600 * 1000)) / 1000);
+        await pool.query(
+          'UPDATE users SET temp_access_token = $1, temp_token_expiry = $2 WHERE id = $3',
+          [accessToken, expiryTime, userId]
+        );
+      } catch (error) {
+        console.log('[TRIGGER_SCAN] Failed to refresh access token:', error.message);
+      }
     }
-    
-    // Set up Gmail API client
+
+    if (!accessToken) {
+      return res.status(401).json({
+        error: 'No valid Gmail access token available. Please re-authenticate.',
+        needsReauth: true
+      });
+    }
+
+    // Set up Gmail API client with access token
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET
     );
-    
+
     oauth2Client.setCredentials({
-      refresh_token: refreshToken
+      access_token: accessToken
     });
-    
+
     // Run the initial scan
     await initialSenderScan(userId, oauth2Client);
-    
-    res.json({ 
-      success: true, 
-      message: 'Initial scan completed successfully' 
+
+    res.json({
+      success: true,
+      message: 'Initial scan completed successfully'
     });
-    
+
   } catch (error) {
     console.error('[TRIGGER_SCAN] Error during initial scan:', error);
     res.status(500).json({ error: 'Initial scan failed: ' + error.message });
@@ -1769,24 +2003,32 @@ app.get('/debug/auth', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const userResult = await pool.query(
-      'SELECT id, email, google_id, initial_scan_complete, google_refresh_token FROM users WHERE id = $1',
+      'SELECT id, email, google_id, initial_scan_complete, google_refresh_token, temp_access_token, temp_token_expiry FROM users WHERE id = $1',
       [userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const user = userResult.rows[0];
+    const currentTime = Math.floor(Date.now() / 1000);
+    const tokenValid = user.temp_access_token && user.temp_token_expiry && user.temp_token_expiry > currentTime;
+
     res.json({
       authenticated: true,
       userId: user.id,
       email: user.email,
       googleId: user.google_id,
       initialScanComplete: user.initial_scan_complete,
-      hasRefreshToken: !!user.google_refresh_token
+      hasRefreshToken: !!user.google_refresh_token,
+      hasAccessToken: !!user.temp_access_token,
+      accessTokenValid: tokenValid,
+      accessTokenExpiry: user.temp_token_expiry,
+      timeUntilExpiry: user.temp_token_expiry ? user.temp_token_expiry - currentTime : null,
+      needsReauth: !tokenValid && !user.google_refresh_token
     });
-    
+
   } catch (error) {
     console.error('Error in debug auth:', error);
     res.status(500).json({ error: 'Debug auth failed' });
