@@ -218,16 +218,33 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 | API URL refactored to env var (`EXPO_PUBLIC_API_URL`) | ✅ |
 | Dev build (development profile) installed on device | ✅ |
 | Dev build running with local Metro + local backend | ✅ |
+| Security incident resolved (credentials rotated, history cleaned) | ✅ |
 
 ### Active work (next up)
 
 | Area | Status | Notes |
 |---|---|---|
 | Backend migration: Railway → Fly.io | ✅ | Live at https://the-postbox-backend.fly.dev |
-| Preview build (standalone, no Metro needed) | ☐ | After Fly.io migration; update URL in eas.json first |
+| Preview build (standalone, no Metro needed) | ☐ | **ATTEMPTED — failed. See investigation notes below before retrying.** |
 | iOS design audit & polish | ☐ | After preview build — need to see it on device to judge |
 | TestFlight beta distribution | ☐ | After design polish |
 | CI/CD pipeline | ☐ | EAS + GitHub Actions (copy pattern from SafariTTS) |
+
+### Preview build — failure investigation notes
+
+A preview build was attempted on 2026-05-29 (build ID `21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) and failed after only ~11 seconds with: `Unknown error. See logs of the Pre-install hook build phase for more information.`
+
+**Before starting the next preview build attempt, investigate these root causes in order:**
+
+1. **EAS CLI is significantly outdated:** Local version is `16.18.1`, latest is `20.x`. Run `npm install -g eas-cli@latest` first. This version gap is the most likely cause of the failure.
+
+2. **Mobile was recently converted from git submodule to regular directory (commit `fa4482a`):** Previously, running `eas build` from `mobile/` uploaded only the `mobile/` submodule's git context. Now it uploads the entire root monorepo (including `backend/`, `db/`, etc.) as the git context. EAS may be confused about the project root. Consider adding a `mobile/.easignore` file to exclude non-mobile files from the upload.
+
+3. **`ios/Podfile.lock` is not committed:** For bare workflow, `Podfile.lock` is normally committed so EAS uses pinned pod versions. It's missing because it was never generated after the submodule conversion. This won't cause a pre-install failure but will cause slower/less predictable pod installs. Cannot be fixed on Windows (needs `pod install` on a Mac) — EAS will generate it on the server.
+
+4. **Check the full build logs** at https://expo.dev/accounts/sid-design/projects/newsletter-reader — look at the failed build's detailed log output to see the exact error in the pre-install phase.
+
+5. **The `eas-build-pre-install` script** in `mobile/package.json` is `npm config set legacy-peer-deps true`. This should not fail, but verify it's running in the correct directory context after the monorepo restructure.
 
 ### Backlog
 
