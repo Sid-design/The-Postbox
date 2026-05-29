@@ -226,6 +226,30 @@ After resolving the bundle identifier, the EAS build process began failing durin
 - Dev build working on device with local backend
 - Migration to Fly.io in progress
 
+### Session 7: Preview Build Working (Bare Workflow Fixes)
+
+**Date:** May 29, 2026
+
+**Goal:** Get a standalone preview build (no Metro) building on EAS. The first preview attempt had failed at the Pre-install phase.
+
+#### Root Causes & Fixes
+
+The build had **five stacked failures** — each fix surfaced the next phase's problem:
+
+1. **EAS CLI outdated** — updated `16.18.1` → `20.0.0`.
+2. **npm `workspaces`** in the root `package.json` made EAS treat the whole monorepo as the project; removed it so `mobile/` is a standalone project root (backend + mobile keep their own lockfiles). Updated the root `test` script accordingly.
+3. **Added `mobile/.easignore`** to control the EAS upload (excludes `Pods/`, `build/`, `node_modules/`, etc.).
+4. **`mobile/ios/` was gitignored and untracked** — so EAS resolved a *managed* workflow and ran `expo prebuild`, which crashed (missing `Supporting/Expo.plist`) and would have overwritten the hand-edited `Info.plist` OAuth config. **Committed `ios/` to git** (verified no secrets) so EAS resolves a *bare* build and skips prebuild.
+5. **`@react-native-community/cli` missing** — the Podfile's `use_native_modules!` autolinking needs it; it had been hoisted under workspaces. Added it + `cli-platform-ios`/`-android` @ `18.0.1`.
+6. **`CFBundleIdentifier` hardcoded to `io.thepostbox.dev`** in `Info.plist` while the Xcode project + provisioning profile use `io.thepostbox.app` — export/signing failed. Changed it to `$(PRODUCT_BUNDLE_IDENTIFIER)`.
+
+#### Outcome
+
+- ✅ Preview build `ee3d5d3f` succeeded — standalone IPA (`io.thepostbox.app`, v1.0 build 10), installable on the registered device without Metro.
+- Fixes are on branch `fix/eas-preview-bare-ios` (not yet merged to `master`).
+- **Note:** in bare mode all profiles build `io.thepostbox.app`; the old dev/prod bundle-ID split was a managed-mode-only behavior.
+- Next: merge the branch, install on device, run the iOS design audit, then TestFlight.
+
 ---
 
 ## Push Notifications
