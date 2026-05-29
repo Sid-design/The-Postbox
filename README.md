@@ -170,10 +170,7 @@ After resolving the bundle identifier, the EAS build process began failing durin
 4.  **Database Initialization Error (Backend):**
     *   **Problem:** With the server now starting, it immediately crashed again with a `SQLITE_NOTADB: file is not a database` error.
     *   **Cause:** The backend code was attempting to connect to `db/schema.sql`, which is a text script, not a binary database file.
-    *   **Solution:**
-        1.  Used the `sqlite3` command-line tool to create a new, empty database at `db/newsletter.db`.
-        2.  Executed the `schema.sql` script against the new database to create the tables.
-        3.  Updated the backend's database connection to point to `db/newsletter.db`.
+    *   **Solution:** Migrated from SQLite to PostgreSQL for better scalability and production readiness.
 
 5.  **Final API Logic Fix (Backend):**
     *   **Problem:** With all systems running, the final login attempt resulted in a `400 Bad Request` from our own backend.
@@ -202,6 +199,32 @@ After resolving the bundle identifier, the EAS build process began failing durin
 #### Outcome
 
 - All dates now render correctly (e.g., "Jul 28, 2025") regardless of their underlying storage format, resolving the user-reported display issue.
+
+### Session 6: Project Cleanup, Dev Build Revival & Fly.io Migration
+
+**Date:** May 29, 2026
+
+**Goal:** Clean up the project, get the app running on device again after TestFlight expiry, and begin backend migration from Railway to Fly.io.
+
+#### Key Decisions & Changes
+
+1. **Project Cleanup:** Removed all Railway-specific files (`railway.toml`, `.railwayignore`, `deploy-to-railway.*`, `RAILWAY_DEPLOYMENT_*.md`, `start.js`, `start-dev.*`), the duplicate root `eas.json`, the orphan root `tsconfig.json`, the old `TESTFLIGHT_CHECKLIST.md`, an ad-hoc `test-mobile-api.js` script, and the old `Newsletter Reader ios build/` folder containing the expired `.ipa`.
+
+2. **API URL Refactored:** `mobile/src/config/api.config.ts` previously had hardcoded IPs and a `currentUrl` getter using `__DEV__`. Replaced with a single `EXPO_PUBLIC_API_URL` env var read at build/Metro time. Each `mobile/eas.json` build profile now sets this explicitly. Local dev uses `mobile/.env` (gitignored).
+
+3. **Dev Build Revived:** EAS development build (`io.thepostbox.dev`) successfully built and installed on device. Connected to local Metro + local backend (PostgreSQL via `newsletter-reader-postgres` Docker container).
+
+4. **Docker Clarified:** Three PostgreSQL containers existed. `newsletter-reader-postgres` (Sep 16, 2025) is the correct one — has full schema and data. The others (`newsletter-postgres`, `postgres-dev`) are empty duplicates from earlier sessions and can be removed.
+
+5. **Backend Migration Decision:** Railway subscription lapsed. Decided to migrate backend to **Fly.io** (user already has account from SafariTTS project). Will deploy Node.js app on Fly.io with Fly Postgres. Preview build will be done after migration so the Fly.io URL is baked in.
+
+6. **Design Audit Planned:** App was built months ago and may not fully adhere to current iOS design standards. A design audit pass is planned after the preview build is working on device.
+
+#### Outcome
+
+- Project root cleaned up to essential files only
+- Dev build working on device with local backend
+- Migration to Fly.io in progress
 
 ---
 
@@ -376,7 +399,7 @@ These enhancements are documented in the `IMPLEMENTATION_ROADMAP.md` file for fu
 #### Implementation status
 
 - **Backend**
-  - App JWT issuance with expiry: ✅ (15 minutes) — `backend/index.js` issues access + refresh tokens in `/login`.
+  - App JWT issuance with expiry: ✅ (1 hour) — `backend/index-postgres.js` issues access + refresh tokens in `/login`.
   - App refresh flow: ✅ `/auth/refresh` endpoint exchanges refresh token for a new access token.
   - Google refresh token flow (for Gmail access): ✅ implemented and stored in the DB; used by server when needed.
 - **Mobile**
@@ -506,9 +529,8 @@ Development → Staging (UAT) → Production
 
 **Critical: Database Migration**
 ```bash
-# SQLite → PostgreSQL (Required for production)
-# SQLite won't scale for multiple users
-# Need proper backup, migration, and connection pooling
+# PostgreSQL database (Production ready)
+# Scalable for multiple users with proper backup, migration, and connection pooling
 ```
 
 #### 📊 **Phase 4: Analytics & Monitoring**
@@ -556,7 +578,7 @@ Development → Staging (UAT) → Production
 #### 📋 **Immediate Next Steps:**
 - [ ] Enroll in Apple Developer Program ($99/year)
 - [ ] Set up Vercel account for backend hosting
-- [ ] Plan SQLite → PostgreSQL migration
+- [x] PostgreSQL database setup complete
 - [ ] Configure production EAS Build
 - [ ] Set up Firebase Analytics
 
@@ -594,7 +616,7 @@ For detailed instructions on setting up the backend or mobile components, please
 
 ### 6. Offline & performance
 - Cache HTML + images in `expo-file-system`, served via `file://`.
-- Gzip HTML before storing (SQLite BLOB).
+- Gzip HTML before storing in device storage.
 - Auto-purge cache >30 days.
 
 ### 7. Backend adjustments
@@ -707,8 +729,8 @@ This session addressed the remaining issue where read status was not being prese
 
 ### Technical Details:
 - **Backend Changes:**
-  - `backend/index.js`: Modified `saveMessage` to use `INSERT OR IGNORE` and return boolean indicating if message was new
-  - `backend/index.js`: Updated `backfillMessages` to track and log imported vs skipped messages
+  - `backend/index-postgres.js`: Modified `saveMessage` to use `ON CONFLICT DO NOTHING` and return boolean indicating if message was new
+  - `backend/index-postgres.js`: Updated `backfillMessages` to track and log imported vs skipped messages
 - **Frontend Changes:**
   - `mobile/src/screens/InboxScreen.tsx`: Removed `/messages/clear` call from `onRefresh`
 
@@ -762,9 +784,9 @@ This session addressed a critical issue where refreshing the inbox was creating 
 
 ### Technical Details:
 - **Backend Changes:**
-  - `backend/index.js`: Added messages table rebuild migration
-  - `backend/index.js`: Fixed `/messages/clear` to actually delete messages
-  - `backend/index.js`: Updated `saveMessage` to use `INSERT OR REPLACE` with read status preservation
+  - `backend/index-postgres.js`: Added messages table rebuild migration
+  - `backend/index-postgres.js`: Fixed `/messages/clear` to actually delete messages
+  - `backend/index-postgres.js`: Updated `saveMessage` to use `ON CONFLICT DO UPDATE` with read status preservation
 - **Frontend Changes:**
   - `mobile/src/screens/InboxScreen.tsx`: Simplified `onRefresh` logic
 
@@ -970,7 +992,7 @@ navigation.setOptions({
 - **Storage Optimization**: Images stored at `Documents/image_cache/`
 
 ##### 3. **Cache Management**:
-- **Metadata Tracking**: SQLite database tracks cache entries, timestamps, and sizes
+- **Metadata Tracking**: Device storage tracks cache entries, timestamps, and sizes
 - **Size Monitoring**: 100MB cache limit with automatic cleanup
 - **Expiry Management**: 30-day automatic purge of old content
 - **Statistics**: Real-time cache statistics and usage reporting
@@ -1021,7 +1043,7 @@ class CacheManager {
 #### API Enhancements:
 1. **Gzip Compression Middleware**:
    ```javascript
-   // backend/index.js - Added compression for all responses
+   // backend/index-postgres.js - Added compression for all responses
    app.use(compression({
      threshold: 1024,  // Compress responses > 1KB
      filter: (req, res) => {

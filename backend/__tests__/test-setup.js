@@ -71,17 +71,18 @@ async function setupTestDatabaseSync() {
     await testPool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
+        google_id TEXT UNIQUE NOT NULL,
         email TEXT UNIQUE NOT NULL,
-        google_id TEXT UNIQUE,
         name TEXT,
         picture TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        push_notifications_enabled BOOLEAN DEFAULT true,
         google_refresh_token TEXT,
         temp_access_token TEXT,
         temp_token_expiry BIGINT,
-        initial_scan_complete BOOLEAN DEFAULT false
+        push_notifications_enabled BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_known_history_id TEXT,
+        initial_scan_complete BOOLEAN DEFAULT FALSE NOT NULL
       )
     `);
 
@@ -208,17 +209,18 @@ async function setupTestDatabase() {
     await testPool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
+        google_id TEXT UNIQUE NOT NULL,
         email TEXT UNIQUE NOT NULL,
-        google_id TEXT UNIQUE,
         name TEXT,
         picture TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        push_notifications_enabled BOOLEAN DEFAULT true,
         google_refresh_token TEXT,
         temp_access_token TEXT,
         temp_token_expiry BIGINT,
-        initial_scan_complete BOOLEAN DEFAULT false
+        push_notifications_enabled BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_known_history_id TEXT,
+        initial_scan_complete BOOLEAN DEFAULT FALSE NOT NULL
       )
     `);
 

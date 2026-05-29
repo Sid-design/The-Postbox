@@ -1,6 +1,6 @@
 // === NEWSLETTER READER BACKEND - POSTGRESQL VERSION ===
-// Complete PostgreSQL migration from SQLite version
-// All features preserved and optimized for PostgreSQL
+// Production-ready PostgreSQL backend with all features
+// Optimized for scalability and performance
 
 const path = require('path')
 
@@ -14,6 +14,7 @@ const { Pool } = require('pg')
 const jwt = require('jsonwebtoken')
 const admin = require('firebase-admin')
 const compression = require('compression')
+const { Expo } = require('expo-server-sdk')
 
 const app = express()
 const port = process.env.PORT || 3000
@@ -56,29 +57,26 @@ function logAuth(level, message, data = null) {
     message,
     data: data ? JSON.stringify(data, null, 2) : null
   }
-  console.log(`[AUTH-${level}] ${timestamp}: ${message}`, data ? data : '')
+  // Only log essential information to console, not large data objects
+  console.log(`[AUTH-${level}] ${timestamp}: ${message}`)
   return logEntry
 }
 
-// Comprehensive logging utility
+// Essential logging utility - only log errors and important events
 function logRequest(req, res, next) {
   const start = Date.now()
-  const timestamp = new Date().toISOString()
   
-  // Log request
-  console.log(`[REQUEST] ${timestamp} ${req.method} ${req.path}`, {
-    ip: req.ip,
-    userAgent: req.get('User-Agent'),
-    hasAuth: !!req.headers.authorization,
-    contentType: req.get('Content-Type'),
-    body: req.method !== 'GET' ? req.body : undefined
-  })
-  
-  // Override res.end to log response
+  // Override res.end to log only errors and slow requests
   const originalEnd = res.end
   res.end = function(chunk, encoding) {
     const duration = Date.now() - start
-    console.log(`[RESPONSE] ${timestamp} ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`)
+    
+    // Only log errors (4xx, 5xx) or slow requests (>1000ms)
+    if (res.statusCode >= 400 || duration > 1000) {
+      const timestamp = new Date().toISOString()
+      console.log(`[${res.statusCode >= 500 ? 'ERROR' : 'WARN'}] ${timestamp} ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`)
+    }
+    
     originalEnd.call(this, chunk, encoding)
   }
   
@@ -149,6 +147,234 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
 })
 
+// Seed discoverable newsletters (run once)
+async function seedDiscoverableNewsletters() {
+  const newsletters = [
+    // Technology
+    {
+      name: 'Hacker News Daily',
+      email: 'daily@hackernews.example',
+      list_id: 'daily',
+      description: 'Top tech stories and discussions from Hacker News community. Stay updated with the latest in programming, startups, and technology trends.',
+      category: 'Technology',
+      subscriber_count: 12500,
+      featured: true
+    },
+    {
+      name: 'The Verge',
+      email: 'newsletter@theverge.com',
+      list_id: 'newsletter',
+      description: 'Tech news that matters, delivered daily. From the latest gadgets to major industry shifts, we cover what\'s important in technology.',
+      category: 'Technology',
+      subscriber_count: 85000,
+      featured: true
+    },
+    {
+      name: 'MIT Technology Review',
+      email: 'daily@technologyreview.com',
+      list_id: 'daily',
+      description: 'Insights from MIT on emerging technologies. Deep dives into AI, biotech, climate tech, and the future of innovation.',
+      category: 'Technology',
+      subscriber_count: 45000,
+      featured: true
+    },
+    {
+      name: 'TechCrunch Daily',
+      email: 'daily@techcrunch.com',
+      list_id: 'daily',
+      description: 'The latest technology news and startup funding information, delivered fresh every morning.',
+      category: 'Technology',
+      subscriber_count: 75000,
+      featured: false
+    },
+    {
+      name: 'Wired Daily',
+      email: 'daily@wired.com',
+      list_id: 'daily',
+      description: 'Where tomorrow is realized. Get the latest in science, culture, and technology from WIRED.',
+      category: 'Technology',
+      subscriber_count: 92000,
+      featured: false
+    },
+
+    // Business & Finance
+    {
+      name: 'Morning Brew',
+      email: 'morning@morningbrew.com',
+      list_id: 'morning',
+      description: 'Business news and insights you can read in 5 minutes. The smartest (and fastest) digest of business news.',
+      category: 'Business',
+      subscriber_count: 120000,
+      featured: true
+    },
+    {
+      name: 'The Hustle',
+      email: 'daily@thehustle.co',
+      list_id: 'daily',
+      description: 'Smart, entertaining business news. Stories about money, entrepreneurship, and the economy that matter.',
+      category: 'Business',
+      subscriber_count: 95000,
+      featured: true
+    },
+    {
+      name: 'Business Insider Daily',
+      email: 'daily@businessinsider.com',
+      list_id: 'daily',
+      description: 'Breaking business news and financial information, plus analysis of markets and companies.',
+      category: 'Business',
+      subscriber_count: 110000,
+      featured: false
+    },
+    {
+      name: 'Seeking Alpha',
+      email: 'market@seekingalpha.com',
+      list_id: 'market',
+      description: 'Stock market analysis and investment research. Get expert insights on stocks, ETFs, and market trends.',
+      category: 'Business',
+      subscriber_count: 65000,
+      featured: false
+    },
+
+    // Design & Creativity
+    {
+      name: 'Creative Bloq',
+      email: 'newsletter@creativebloq.com',
+      list_id: 'newsletter',
+      description: 'Design inspiration and tutorials for creatives. Learn new skills and stay inspired with design trends.',
+      category: 'Design',
+      subscriber_count: 78000,
+      featured: false
+    },
+    {
+      name: 'Smashing Magazine',
+      email: 'newsletter@smashingmagazine.com',
+      list_id: 'newsletter',
+      description: 'Helping you master web development and design. Tips, techniques, and best practices for modern web design.',
+      category: 'Design',
+      subscriber_count: 68000,
+      featured: false
+    },
+    {
+      name: 'Dribbble Daily',
+      email: 'daily@dribbble.com',
+      list_id: 'daily',
+      description: 'The best design work from around the world. Daily inspiration from the world\'s top designers.',
+      category: 'Design',
+      subscriber_count: 45000,
+      featured: false
+    },
+
+    // Science & Education
+    {
+      name: 'Science Daily',
+      email: 'newsletter@sciencedaily.com',
+      list_id: 'newsletter',
+      description: 'Latest research news and scientific discoveries. Stay informed about breakthroughs in science and technology.',
+      category: 'Science',
+      subscriber_count: 156000,
+      featured: true
+    },
+    {
+      name: 'Quanta Magazine',
+      email: 'weekly@quantamagazine.org',
+      list_id: 'weekly',
+      description: 'Illuminating mathematics, physics, biology and computer science research. Making complex science accessible.',
+      category: 'Science',
+      subscriber_count: 35000,
+      featured: false
+    },
+    {
+      name: 'The Scientist',
+      email: 'newsletter@the-scientist.com',
+      list_id: 'newsletter',
+      description: 'Life science news and commentary. Keep up with the latest research and trends in biological sciences.',
+      category: 'Science',
+      subscriber_count: 28000,
+      featured: false
+    },
+
+    // Health & Wellness
+    {
+      name: 'Well+Good',
+      email: 'newsletter@wellandgood.com',
+      list_id: 'newsletter',
+      description: 'Health, wellness, and lifestyle tips. Your guide to living your healthiest, happiest life.',
+      category: 'Health',
+      subscriber_count: 89000,
+      featured: false
+    },
+    {
+      name: 'Healthline',
+      email: 'newsletter@healthline.com',
+      list_id: 'newsletter',
+      description: 'Trusted medical information and health advice. Evidence-based health content you can rely on.',
+      category: 'Health',
+      subscriber_count: 134000,
+      featured: false
+    },
+
+    // Sports & Gaming
+    {
+      name: 'ESPN Daily',
+      email: 'daily@espn.com',
+      list_id: 'daily',
+      description: 'The latest sports news, scores, and analysis from ESPN. Your daily sports briefing.',
+      category: 'Sports',
+      subscriber_count: 180000,
+      featured: false
+    },
+    {
+      name: 'IGN Daily',
+      email: 'daily@ign.com',
+      list_id: 'daily',
+      description: 'Video game news, reviews, and entertainment. The latest in gaming culture and industry news.',
+      category: 'Entertainment',
+      subscriber_count: 95000,
+      featured: false
+    },
+
+    // Politics & News
+    {
+      name: 'Politico Playbook',
+      email: 'playbook@politico.com',
+      list_id: 'playbook',
+      description: 'The most influential newsletter in politics. Morning must-reads from Washington insiders.',
+      category: 'Politics',
+      subscriber_count: 42000,
+      featured: false
+    },
+    {
+      name: 'The New York Times Daily',
+      email: 'daily@nytimes.com',
+      list_id: 'daily',
+      description: 'All the news that\'s fit to print. Comprehensive coverage of news, politics, and culture.',
+      category: 'Politics',
+      subscriber_count: 210000,
+      featured: false
+    }
+  ];
+
+  for (const newsletter of newsletters) {
+    try {
+      await pool.query(`
+        INSERT INTO senders (name, email, list_id, description, category, subscriber_count, featured, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (email, list_id) DO NOTHING
+      `, [
+        newsletter.name,
+        newsletter.email,
+        newsletter.list_id || 'default',
+        newsletter.description,
+        newsletter.category,
+        newsletter.subscriber_count,
+        newsletter.featured
+      ]);
+    } catch (error) {
+      console.error('Error seeding newsletter:', newsletter.name, error.message);
+    }
+  }
+}
+
 pool.on('connect', () => {
   console.log('Connected to PostgreSQL database.')
 })
@@ -191,30 +417,11 @@ async function initializeDatabase() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS senders (
         id SERIAL PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
+        email TEXT NOT NULL,
         name TEXT,
-        description TEXT,
-        category TEXT DEFAULT 'Other',
-        list_id TEXT,
-        subscriber_count INTEGER DEFAULT 0,
-        featured BOOLEAN DEFAULT false,
+        picture TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `)
-
-    // Create messages table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id SERIAL PRIMARY KEY,
-        gmail_id TEXT UNIQUE,
-        sender_id INTEGER REFERENCES senders(id),
-        subject TEXT,
-        body_html TEXT,
-        received_at TIMESTAMP,
-        read BOOLEAN DEFAULT false,
-        archived BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `)
 
@@ -222,27 +429,90 @@ async function initializeDatabase() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS subscriptions (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        sender_id INTEGER REFERENCES senders(id),
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        sender_id INTEGER REFERENCES senders(id) ON DELETE CASCADE,
         is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, sender_id)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `)
 
-    // Create devices table for FCM tokens
+    // Create messages table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        sender_id INTEGER REFERENCES senders(id) ON DELETE CASCADE,
+        gmail_id TEXT UNIQUE NOT NULL,
+        subject TEXT,
+        body_html TEXT,
+        received_at TIMESTAMP,
+        is_read BOOLEAN DEFAULT false,
+        is_saved BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+
+    // Create devices table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS devices (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        fcm_token TEXT UNIQUE NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        fcm_token TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        UNIQUE(user_id, fcm_token)
       )
     `)
 
+    // Database migration: Add push_notifications_enabled column if it doesn't exist
+    try {
+      // Check if column exists
+      const columnCheck = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' AND column_name = 'push_notifications_enabled'
+      `);
+
+      if (columnCheck.rows.length === 0) {
+        console.log('[MIGRATION] Adding push_notifications_enabled column to users table...');
+        await pool.query(`
+          ALTER TABLE users 
+          ADD COLUMN push_notifications_enabled BOOLEAN DEFAULT true
+        `);
+        console.log('[MIGRATION] push_notifications_enabled column added successfully');
+      } else {
+        console.log('[MIGRATION] push_notifications_enabled column already exists');
+      }
+
+      // Ensure all users have the column value set
+      const updateCount = await pool.query(`
+        UPDATE users 
+        SET push_notifications_enabled = true 
+        WHERE push_notifications_enabled IS NULL
+      `);
+      
+      if (updateCount.rowCount > 0) {
+        console.log(`[MIGRATION] Updated ${updateCount.rowCount} users with push_notifications_enabled = true`);
+      }
+    } catch (migrationError) {
+      console.error('[MIGRATION] Error during database migration:', migrationError);
+    }
+
+    // Create indexes for better performance
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_senders_email ON senders(email)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_sender ON subscriptions(user_id, sender_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_messages_sender_received ON messages(sender_id, received_at DESC)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_messages_gmail_id ON messages(gmail_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_devices_user_token ON devices(user_id, fcm_token)');
+
     console.log('PostgreSQL database tables initialized successfully')
+
+    // Seed discoverable newsletters after tables are created
+    try {
+      await seedDiscoverableNewsletters();
+      console.log('✅ Discoverable newsletters seeded successfully');
+    } catch (error) {
+      console.error('❌ Error seeding discoverable newsletters:', error);
+    }
 
     // Sample data seeding removed - newsletters will be dynamically discovered from Gmail
   } catch (err) {
@@ -278,45 +548,6 @@ async function findOrCreateUser(googleId, email) {
   }
 }
 
-async function findOrCreateSender(fullFromHeader, listId = null) {
-  try {
-    // Parse email and name from header
-    let email, name
-    const emailMatch = fullFromHeader.match(/<([^>]+)>/)
-    if (emailMatch) {
-      email = emailMatch[1].toLowerCase().trim()
-      name = fullFromHeader.split('<')[0].trim().replace(/"/g, '')
-    } else {
-      email = fullFromHeader.trim().toLowerCase()
-      name = email.split('@')[0]
-    }
-
-    if (!listId) {
-      listId = name.toLowerCase().replace(/\s+/g, '')
-    }
-
-    // Check if sender exists
-    const existingSender = await pool.query(
-      'SELECT * FROM senders WHERE email = $1 AND COALESCE(list_id, \'\') = COALESCE($2, \'\')',
-      [email, listId]
-    )
-
-    if (existingSender.rows.length > 0) {
-      return existingSender.rows[0]
-    }
-
-    // Create new sender
-    const result = await pool.query(
-      'INSERT INTO senders (name, email, list_id) VALUES ($1, $2, $3) RETURNING *',
-      [name, email, listId]
-    )
-
-    return result.rows[0]
-  } catch (error) {
-    console.error('Error in findOrCreateSender:', error)
-    throw error
-  }
-}
 
 async function findOrCreateSubscription(userId, senderId, isActive = true) {
   try {
@@ -344,28 +575,50 @@ async function findOrCreateSubscription(userId, senderId, isActive = true) {
 }
 
 // Initialize database
-initializeDatabase()
+initializeDatabase().catch(console.error)
 
 // --- MIDDLEWARE ---
 const authenticateToken = (req, res, next) => {
   try {
     const authHeader = req.headers['authorization']
     const token = authHeader && authHeader.split(' ')[1]
-
+    
+    console.log(`[AUTH] Incoming request to ${req.path}, token present: ${!!token}`);  // Add this log
+    
     if (!token) {
+      console.log('[AUTH] No token provided, returning 401');
       return res.status(401).json({ error: 'Access token required' })
     }
+    
+    console.log(`[AUTH] Token extracted (first 10 chars): ${token.substring(0, 10)}...`);  // Add masked token log
+    
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('[AUTH] JWT_SECRET environment variable is missing!');
+      return res.status(500).json({ error: 'JWT_SECRET not configured' });
+    }
+    
+    console.log('[AUTH] JWT_SECRET present, proceeding to verify');  // Add this log
+    
+    if (!jwt) {
+      console.error('[AUTH] JWT library not available');
+      return res.status(500).json({ error: 'JWT library not available' })
+    }
 
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-      if (err) {
-        return res.status(403).json({ error: 'Invalid or expired token' })
-      }
-      req.user = user
-      next()
-    })
+    const decoded = jwt.verify(token, jwtSecret);  // Use jwtSecret
+    
+    console.log(`[AUTH] Token verified successfully, userId: ${decoded.userId}`);  // Add decoded log
+    
+    req.user = decoded
+    next()
   } catch (error) {
-    console.error('Auth middleware error:', error)
-    res.status(500).json({ error: 'Authentication error' })
+    console.error(`[AUTH] Token verification failed for ${req.path}:`, {
+      message: error.message,
+      name: error.name,
+      code: error.code,
+      tokenLength: token ? token.length : 0
+    });
+    return res.status(401).json({ error: 'Invalid token', details: error.message })
   }
 }
 
@@ -555,6 +808,235 @@ app.get('/test', (req, res) => {
   })
 })
 
+// Add test sender for notification testing
+app.post('/api/test/add-sender', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Check if test sender already exists
+    const existingSender = await pool.query(
+      'SELECT id FROM senders WHERE email = $1',
+      ['siddharth.daswani7@gmail.com']
+    );
+
+    let senderId;
+    if (existingSender.rows.length > 0) {
+      senderId = existingSender.rows[0].id;
+    } else {
+      // Create test sender
+      const senderResult = await pool.query(`
+        INSERT INTO senders (name, email, description, category, subscriber_count, featured, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING id
+      `, ['Test User', 'siddharth.daswani7@gmail.com', 'Test sender for notification testing', 'Testing', 1, false]);
+
+      senderId = senderResult.rows[0].id;
+    }
+
+    // Subscribe the user to this sender
+    await pool.query(`
+      INSERT INTO subscriptions (user_id, sender_id, is_active, created_at, updated_at)
+      VALUES ($1, $2, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id, sender_id)
+      DO UPDATE SET is_active = true, updated_at = CURRENT_TIMESTAMP
+    `, [userId, senderId]);
+
+    res.json({
+      success: true,
+      message: 'Test sender added and user subscribed',
+      senderId: senderId
+    });
+  } catch (error) {
+    console.error('Error adding test sender:', error);
+    res.status(500).json({ error: 'Failed to add test sender' });
+  }
+})
+
+// Debug endpoint to check notification setup
+app.get('/api/debug/notifications', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    console.log(`[DEBUG] Checking notification setup for user ${userId}`);
+
+    // Check test sender
+    const testSender = await pool.query(
+      'SELECT id, name, email FROM senders WHERE email = $1',
+      ['siddharth.daswani7@gmail.com']
+    );
+
+    console.log(`[DEBUG] Test sender found:`, testSender.rows.length > 0);
+
+    let subscription = null;
+    if (testSender.rows.length > 0) {
+      // Check user's subscription to test sender
+      subscription = await pool.query(`
+        SELECT s.is_active, u.push_notifications_enabled
+        FROM subscriptions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.sender_id = $1 AND s.user_id = $2
+      `, [testSender.rows[0].id, userId]);
+
+      console.log(`[DEBUG] Subscription found:`, subscription.rows.length > 0);
+    }
+
+    // Check user's devices
+    const devices = await pool.query(
+      'SELECT fcm_token FROM devices WHERE user_id = $1 AND fcm_token IS NOT NULL',
+      [userId]
+    );
+
+    console.log(`[DEBUG] Devices found:`, devices.rows.length);
+
+    // Check user's notification settings
+    const userSettings = await pool.query(
+      'SELECT push_notifications_enabled FROM users WHERE id = $1',
+      [userId]
+    );
+
+    console.log(`[DEBUG] User settings found:`, userSettings.rows.length > 0);
+
+    // Check database schema
+    let schemaCheck = null;
+    try {
+      schemaCheck = await pool.query(`
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'push_notifications_enabled'
+      `);
+
+      console.log(`[DEBUG] Schema check for push_notifications_enabled:`, schemaCheck.rows);
+    } catch (schemaError) {
+      console.error(`[DEBUG] Schema check failed:`, schemaError.message);
+    }
+
+    const response = {
+      testSender: testSender.rows[0] || null,
+      subscription: subscription?.rows[0] || null,
+      devices: devices.rows.map(d => d.fcm_token ? d.fcm_token.substring(0, 20) + '...' : null),
+      userSettings: userSettings.rows[0] || null,
+      firebaseConfigured: !!admin.messaging,
+      databaseConnection: 'connected',
+      schemaCheck: schemaCheck?.rows || null
+    };
+
+    console.log(`[DEBUG] Response:`, JSON.stringify(response, null, 2));
+    res.json(response);
+  } catch (error) {
+    console.error('Error in debug notifications:', error);
+    res.status(500).json({
+      error: 'Failed to debug notifications',
+      details: error.message,
+      databaseConnection: 'error'
+    });
+  }
+})
+
+// Test notification endpoint
+app.post('/api/test/notification', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log(`[TEST_NOTIFICATION] Sending test push to user ${userId}`);
+
+    // Get user's FCM token
+    const devicesResult = await pool.query(
+      'SELECT fcm_token FROM devices WHERE user_id = $1 AND fcm_token IS NOT NULL',
+      [userId]
+    );
+
+    if (devicesResult.rows.length === 0) {
+      console.log(`[TEST_NOTIFICATION] No FCM token found for user ${userId}`);
+      return res.status(400).json({ error: 'No device token registered. Please restart the app to register.' });
+    }
+
+    const token = devicesResult.rows[0].fcm_token;
+    console.log(`[TEST_NOTIFICATION] Found token: ${token.substring(0, 20)}...`);
+
+    const expo = new Expo();
+
+    if (token.startsWith('ExponentPushToken[')) {
+      // Expo dev token
+      console.log(`[TEST_NOTIFICATION] Using Expo SDK for dev token`);
+
+      if (!Expo.isExpoPushToken(token)) {
+        console.log(`[TEST_NOTIFICATION] Invalid Expo push token`);
+        return res.status(400).json({ error: 'Invalid Expo push token' });
+      }
+
+      const messages = [{
+        to: token,
+        sound: 'default',
+        title: 'Test Notification',
+        body: 'This is a test push from The Postbox app.',
+        data: {
+          type: 'test',
+          timestamp: Date.now().toString(),
+        },
+      }];
+
+      const chunks = expo.chunkPushNotifications(messages);
+      const tickets = [];
+
+      for (let chunk of chunks) {
+        try {
+          const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+          console.log(`[TEST_NOTIFICATION] Expo tickets:`, ticketChunk);
+          tickets.push(...ticketChunk);
+        } catch (error) {
+          console.error(`[TEST_NOTIFICATION] Expo send error:`, error);
+          return res.status(500).json({ error: 'Failed to send via Expo', details: error.message });
+        }
+      }
+
+      const validTickets = tickets.filter(t => t.status !== 'error');
+      console.log(`[TEST_NOTIFICATION] Expo send complete: ${validTickets.length} success`);
+
+      res.json({ 
+        success: true, 
+        tickets,
+        details: 'Test notification sent via Expo SDK.' 
+      });
+
+    } else {
+      // Native FCM token
+      console.log(`[TEST_NOTIFICATION] Using Firebase for native token`);
+
+      if (!admin.messaging) {
+        console.log(`[TEST_NOTIFICATION] Firebase Admin not initialized`);
+        return res.status(500).json({ error: 'Firebase not configured' });
+      }
+
+      const message = {
+        notification: {
+          title: 'Test Notification',
+          body: 'This is a test push from The Postbox app.',
+        },
+        data: {
+          type: 'test',
+          timestamp: Date.now().toString(),
+        },
+        token: token,
+      };
+
+      const response = await admin.messaging().send(message);
+      console.log(`[TEST_NOTIFICATION] Firebase send success:`, response);
+
+      res.json({ 
+        success: true, 
+        messageId: response,
+        details: 'Test notification sent via Firebase.' 
+      });
+    }
+
+  } catch (error) {
+    console.error('[TEST_NOTIFICATION] Error sending test push:', error);
+    res.status(500).json({ 
+      error: 'Failed to send test notification',
+      details: error.message 
+    });
+  }
+})
+
 // --- OAUTH2 SETUP ---
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -653,13 +1135,18 @@ app.get('/api/user', authenticateToken, async (req, res) => {
 
 app.get('/api/senders', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user.userId;
     const senders = await pool.query(`
-      SELECT s.*, COUNT(m.id) as message_count
+      SELECT 
+        s.*, 
+        COUNT(m.id) as message_count,
+        COALESCE(sub.is_active, false) as is_active
       FROM senders s
       LEFT JOIN messages m ON s.id = m.sender_id
-      GROUP BY s.id
+      LEFT JOIN subscriptions sub ON s.id = sub.sender_id AND sub.user_id = $1
+      GROUP BY s.id, sub.is_active
       ORDER BY s.name
-    `)
+    `, [userId])
     res.json(senders.rows)
   } catch (error) {
     console.error('Error fetching senders:', error)
@@ -669,32 +1156,29 @@ app.get('/api/senders', authenticateToken, async (req, res) => {
 
 app.get('/api/messages', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user.userId;
     const page = parseInt(req.query.page) || 1
     const limit = parseInt(req.query.limit) || 50
     const offset = (page - 1) * limit
 
+    // Only return messages from senders the user is subscribed to
     const messages = await pool.query(`
       SELECT m.*, s.name as sender_name, s.email as sender_email
       FROM messages m
       JOIN senders s ON m.sender_id = s.id
+      JOIN subscriptions sub ON s.id = sub.sender_id
+      WHERE sub.user_id = $1 AND sub.is_active = true
       ORDER BY m.received_at DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset])
+      LIMIT $2 OFFSET $3
+    `, [userId, limit, offset])
 
-    console.log('[API] Messages query result:', {
-      rowCount: messages.rowCount,
-      rowsLength: messages.rows?.length,
-      sampleRow: messages.rows?.[0]
-    });
-    
-    res.json({
-      messages: messages.rows || [],
-      pagination: {
-        page,
-        limit,
-        total: messages.rowCount || 0
-      }
-    })
+    // Only log if there are issues or for debugging
+    if (messages.rowCount === 0) {
+      console.log('[API] No messages found for user');
+    }
+
+    // Return direct array as expected by mobile app
+    res.json(messages.rows || [])
   } catch (error) {
     // Don't log database errors in test environment to avoid confusion
     if (process.env.NODE_ENV !== 'test') {
@@ -723,6 +1207,81 @@ app.get('/api/newsletters', async (req, res) => {
   } catch (error) {
     console.error('Error fetching newsletters:', error)
     res.status(500).json({ error: 'Failed to fetch newsletters' })
+  }
+})
+
+// Newsletter discovery endpoint
+app.get('/discover', async (req, res) => {
+  try {
+    const { category, search, limit = 20, offset = 0 } = req.query;
+    
+    let query = `
+      SELECT s.*, COUNT(m.id) as message_count
+      FROM senders s
+      LEFT JOIN messages m ON s.id = m.sender_id
+      WHERE s.description IS NOT NULL AND s.description != ''
+    `;
+    const params = [];
+    let paramCount = 0;
+
+    if (category) {
+      paramCount++;
+      query += ` AND s.category = $${paramCount}`;
+      params.push(category);
+    }
+
+    if (search) {
+      paramCount++;
+      query += ` AND (s.name ILIKE $${paramCount} OR s.description ILIKE $${paramCount})`;
+      params.push(`%${search}%`);
+    }
+
+    query += ` GROUP BY s.id ORDER BY s.featured DESC, s.subscriber_count DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const newsletters = await pool.query(query, params);
+    
+    // Convert boolean featured to number for mobile app compatibility
+    const formattedNewsletters = newsletters.rows.map(newsletter => ({
+      ...newsletter,
+      featured: newsletter.featured ? 1 : 0
+    }));
+
+    res.json(formattedNewsletters);
+  } catch (error) {
+    console.error('Error fetching discoverable newsletters:', error);
+    res.status(500).json({ error: 'Failed to fetch newsletters' });
+  }
+})
+
+// Newsletter discovery subscription endpoint
+app.post('/discover/subscribe', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { senderId } = req.body;
+
+    if (!senderId) {
+      return res.status(400).json({ error: 'Sender ID is required' });
+    }
+
+    // Check if sender exists
+    const senderResult = await pool.query('SELECT * FROM senders WHERE id = $1', [senderId]);
+    if (senderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Newsletter not found' });
+    }
+
+    // Create or update subscription
+    await pool.query(`
+      INSERT INTO subscriptions (user_id, sender_id, is_active, created_at, updated_at)
+      VALUES ($1, $2, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id, sender_id) 
+      DO UPDATE SET is_active = true, updated_at = CURRENT_TIMESTAMP
+    `, [userId, senderId]);
+
+    res.json({ success: true, message: 'Successfully subscribed to newsletter' });
+  } catch (error) {
+    console.error('Error subscribing to newsletter:', error);
+    res.status(500).json({ error: 'Failed to subscribe to newsletter' });
   }
 })
 
@@ -827,10 +1386,11 @@ app.get('/api/subscriptions', authenticateToken, async (req, res) => {
       ORDER BY sub.created_at DESC
     `, [userId]);
 
-    // Convert boolean featured to number for mobile app compatibility
+    // Convert boolean fields to numbers for mobile app compatibility
     const formattedSubscriptions = subscriptions.rows.map(sub => ({
       ...sub,
-      featured: sub.featured ? 1 : 0
+      featured: sub.featured ? 1 : 0,
+      is_subscribed: sub.is_active ? 1 : 0
     }));
 
     res.json(formattedSubscriptions);
@@ -944,6 +1504,33 @@ app.get('/api/notification-settings', authenticateToken, async (req, res) => {
       quietHoursStart: '22:00', // Default
       quietHoursEnd: '08:00' // Default
     });
+  } catch (error) {
+    console.error('Error fetching notification settings:', error);
+    res.status(500).json({ error: 'Failed to fetch notification settings' });
+  }
+});
+
+// Notification settings endpoint
+app.get('/notification-settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const result = await pool.query(`
+      SELECT 
+        email_notifications,
+        push_notifications,
+        digest_frequency,
+        quiet_hours_start,
+        quiet_hours_end
+      FROM users 
+      WHERE id = $1
+    `, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(result.rows[0]);
   } catch (error) {
     console.error('Error fetching notification settings:', error);
     res.status(500).json({ error: 'Failed to fetch notification settings' });
@@ -1098,12 +1685,12 @@ app.post('/auth/refresh', async (req, res) => {
       const newAccessToken = jwt.sign(
         { userId: decoded.userId, email: decoded.email }, 
         JWT_SECRET, 
-        { expiresIn: '15m' }
+        { expiresIn: '1h' }
       );
       
       res.json({ 
         accessToken: newAccessToken,
-        expiresIn: 900 // 15 minutes in seconds
+        expiresIn: 3600 // 1 hour in seconds
       });
     });
   } catch (error) {
@@ -1409,7 +1996,7 @@ app.post('/login', async (req, res) => {
     }
 
     // Create our app-specific JWTs
-    const appToken = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '15m' });
+    const appToken = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
     const refreshTokenJwt = jwt.sign({ userId: user.id, type: 'refresh' }, REFRESH_JWT_SECRET, { expiresIn: '90d' });
     logAuth('SUCCESS', 'Login completed successfully', {
       userId: user.id,
@@ -1418,7 +2005,7 @@ app.post('/login', async (req, res) => {
     });
 
     // The mobile app expects the key to be "token"; include refresh token for silent renewals
-    res.json({ token: appToken, refreshToken: refreshTokenJwt, expiresIn: 900 });
+    res.json({ token: appToken, refreshToken: refreshTokenJwt, expiresIn: 3600 });
   } catch (error) {
     logAuth('ERROR', 'Error during login', {
       error: error.message,
@@ -1474,15 +2061,15 @@ async function findOrCreateSender(fullFromHeader, listId = null) {
       listId = name.toLowerCase().replace(/\s+/g, '');
     }
 
-    // Check if this sender already exists (email + listId)
-    const query = `SELECT * FROM senders WHERE email = $1 AND COALESCE(list_id,'') = COALESCE($2, '')`;
+    // Check if this sender already exists (email and list_id combination)
+    const query = `SELECT * FROM senders WHERE email = $1 AND COALESCE(list_id, '') = COALESCE($2, '')`;
     const result = await pool.query(query, [email, listId]);
     
     if (result.rows.length > 0) {
       return result.rows[0]; // It exists, return it
     }
 
-    // Create new sender
+    // Create new sender (email + list_id combination is unique)
     const insertQuery = `
       INSERT INTO senders (name, email, list_id, created_at, updated_at) 
       VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
@@ -1492,6 +2079,165 @@ async function findOrCreateSender(fullFromHeader, listId = null) {
     return insertResult.rows[0];
   } catch (error) {
     console.error('Error in findOrCreateSender:', error);
+    throw error;
+  }
+}
+
+// Send push notification for new message
+async function sendNotificationForNewMessage(senderId, subject) {
+  try {
+    console.log(`[NOTIFICATION] Sending push notification for new message from sender ${senderId}`);
+
+    const senderResult = await pool.query(
+      'SELECT name, email FROM senders WHERE id = $1',
+      [senderId]
+    );
+
+    if (senderResult.rows.length === 0) {
+      console.log(`[NOTIFICATION] Sender ${senderId} not found, skipping notification`);
+      return;
+    }
+
+    const sender = senderResult.rows[0];
+    console.log(`[NOTIFICATION] Sending notification for message from: ${sender.name} (${sender.email})`);
+
+    // Debug: Check all subscriptions for this sender
+    const allSubscriptionsResult = await pool.query(`
+      SELECT u.id, u.email, u.push_notifications_enabled, s.is_active
+      FROM users u
+      JOIN subscriptions s ON u.id = s.user_id
+      WHERE s.sender_id = $1
+    `, [senderId]);
+
+    console.log(`[NOTIFICATION] All subscriptions for sender ${senderId}:`, allSubscriptionsResult.rows.map(r => ({
+      userId: r.id,
+      email: r.email,
+      notificationsEnabled: r.push_notifications_enabled,
+      isActive: r.is_active
+    })));
+
+    const usersResult = await pool.query(`
+      SELECT DISTINCT u.id, u.push_notifications_enabled
+      FROM users u
+      JOIN subscriptions s ON u.id = s.user_id
+      WHERE s.sender_id = $1 AND s.is_active = true
+    `, [senderId]);
+
+    if (usersResult.rows.length === 0) {
+      console.log(`[NOTIFICATION] No users subscribed to sender ${senderId} with notifications enabled`);
+      return;
+    }
+
+    console.log(`[NOTIFICATION] Found ${usersResult.rows.length} users to notify`);
+
+    const userIds = usersResult.rows.map(row => row.id);
+    const placeholders = userIds.map((_, index) => `$${index + 1}`).join(',');
+
+    const devicesResult = await pool.query(`
+      SELECT DISTINCT fcm_token
+      FROM devices
+      WHERE user_id IN (${placeholders}) AND fcm_token IS NOT NULL
+    `, userIds);
+
+    console.log(`[NOTIFICATION] Device query result:`, {
+      userIds,
+      deviceCount: devicesResult.rows.length,
+      tokens: devicesResult.rows.map(row => row.fcm_token ? row.fcm_token.substring(0, 20) + '...' : 'null')
+    });
+
+    if (devicesResult.rows.length === 0) {
+      console.log(`[NOTIFICATION] No registered devices found for users: ${userIds.join(', ')}`);
+      return;
+    }
+
+    const tokens = devicesResult.rows.map(row => row.fcm_token);
+    console.log(`[NOTIFICATION] Processing ${tokens.length} tokens`);
+
+    const expo = new Expo();
+    let firebaseSuccess = 0;
+    let expoSuccess = 0;
+    let errors = [];
+
+    for (const token of tokens) {
+      try {
+        if (token.startsWith('ExponentPushToken[')) {
+          // Expo dev token
+          console.log(`[NOTIFICATION] Using Expo SDK for token: ${token.substring(0, 20)}...`);
+
+          if (!Expo.isExpoPushToken(token)) {
+            errors.push({ token: token.substring(0, 20) + '...', error: 'Invalid Expo push token' });
+            continue;
+          }
+
+          const messages = [{
+            to: token,
+            sound: 'default',
+            title: 'New Newsletter',
+            body: `New message from ${sender.name}: ${subject.length > 100 ? subject.substring(0, 100) + '...' : subject}`,
+            data: {
+              senderId: senderId.toString(),
+              senderName: sender.name,
+              subject: subject,
+              type: 'new_message',
+            },
+          }];
+
+          const chunks = expo.chunkPushNotifications(messages);
+          const tickets = [];
+
+          for (let chunk of chunks) {
+            const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+            tickets.push(...ticketChunk);
+          }
+
+          const validTickets = tickets.filter(t => t.status !== 'error');
+          expoSuccess += validTickets.length;
+          if (tickets.some(t => t.status === 'error')) {
+            errors.push({ token: token.substring(0, 20) + '...', error: 'Expo send failed' });
+          }
+
+        } else {
+          // Native FCM token
+          console.log(`[NOTIFICATION] Using Firebase for token: ${token.substring(0, 20)}...`);
+
+          if (admin.messaging) {
+            const message = {
+              notification: {
+                title: 'New Newsletter',
+                body: `New message from ${sender.name}: ${subject.length > 100 ? subject.substring(0, 100) + '...' : subject}`,
+              },
+              data: {
+                senderId: senderId.toString(),
+                senderName: sender.name,
+                subject: subject,
+                type: 'new_message',
+              },
+              token: token,
+            };
+
+            const response = await admin.messaging().send(message);
+            if (response) {
+              firebaseSuccess++;
+            } else {
+              errors.push({ token: token.substring(0, 20) + '...', error: 'Firebase send failed' });
+            }
+          } else {
+            errors.push({ token: token.substring(0, 20) + '...', error: 'Firebase not available' });
+          }
+        }
+      } catch (error) {
+        console.error(`[NOTIFICATION] Error sending to token ${token.substring(0, 20)}... :`, error);
+        errors.push({ token: token.substring(0, 20) + '...', error: error.message });
+      }
+    }
+
+    console.log(`[NOTIFICATION] Notification send complete: Expo=${expoSuccess}, Firebase=${firebaseSuccess}, Errors=${errors.length}`);
+    if (errors.length > 0) {
+      console.log(`[NOTIFICATION] Errors:`, errors);
+    }
+
+  } catch (error) {
+    console.error('Error sending notification:', error);
     throw error;
   }
 }
@@ -1521,7 +2267,17 @@ async function saveMessage(senderId, gmailId, subject, bodyHtml, dateIso = null)
 
     const received = normalizeDate(dateIso).toISOString();
     const result = await pool.query(query, [senderId, gmailId, subject, bodyHtml, received]);
-    
+
+    // If a new message was inserted, send push notifications
+    if (result.rows.length > 0) {
+      try {
+        await sendNotificationForNewMessage(senderId, subject);
+      } catch (notificationError) {
+        console.error('Failed to send notification for new message:', notificationError);
+        // Don't throw - we don't want to fail message saving due to notification issues
+      }
+    }
+
     // Return true if a new row was inserted, false if it already existed
     return result.rows.length > 0;
   } catch (error) {
@@ -1530,30 +2286,12 @@ async function saveMessage(senderId, gmailId, subject, bodyHtml, dateIso = null)
   }
 }
 
-// Recursively extract HTML body from Gmail message payload
-function extractHtml(payload) {
-  if (!payload) return '';
-  if (payload.mimeType === 'text/html' && payload.body && payload.body.data) {
-    let data = payload.body.data;
-    // Gmail uses web-safe base64url. Convert to standard base64.
-    data = data.replace(/-/g, '+').replace(/_/g, '/');
-    while (data.length % 4) data += '=';
-    return Buffer.from(data, 'base64').toString('utf8');
-  }
-  if (payload.parts && Array.isArray(payload.parts)) {
-    for (const part of payload.parts) {
-      const html = extractHtml(part);
-      if (html) return html;
-    }
-  }
-  return '';
-}
 
 // --- INITIAL SENDER SCAN FUNCTION ---
 async function initialSenderScan(userId, authClient) {
   try {
     console.log(`[INITIAL_SCAN_START] Starting initial scan for user ${userId}`);
-    console.log(`[INITIAL_SCAN_START] Auth client credentials:`, authClient.credentials);
+    console.log(`[INITIAL_SCAN_START] Auth client has credentials:`, !!authClient.credentials);
     console.log('[INITIAL_SCAN] Fetching recent messages for initial scan...');
     const gmail = google.gmail({ version: 'v1', auth: authClient });
 
@@ -1852,6 +2590,53 @@ app.post('/api/messages/:id/unread', authenticateToken, async (req, res) => {
   }
 });
 
+// Clear all messages endpoint
+app.post('/messages/clear', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Delete all messages for the user's subscribed senders
+    await pool.query(`
+      DELETE FROM messages 
+      WHERE sender_id IN (
+        SELECT sender_id FROM subscriptions 
+        WHERE user_id = $1 AND is_active = true
+      )
+    `, [userId]);
+
+    res.json({ success: true, message: 'All messages cleared successfully' });
+  } catch (error) {
+    console.error('Error clearing messages:', error);
+    res.status(500).json({ error: 'Failed to clear messages' });
+  }
+});
+
+// Manual rescan endpoint
+app.get('/rescan', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Trigger a manual rescan of Gmail messages
+    const result = await pool.query(`
+      UPDATE users 
+      SET initial_scan_complete = false, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $1
+    `, [userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Rescan triggered successfully. Messages will be updated shortly.' 
+    });
+  } catch (error) {
+    console.error('Error triggering rescan:', error);
+    res.status(500).json({ error: 'Failed to trigger rescan' });
+  }
+});
+
 // --- MANUAL TRIGGER INITIAL SCAN ENDPOINT ---
 app.post('/api/trigger-initial-scan-manual', authenticateToken, async (req, res) => {
   try {
@@ -2045,6 +2830,16 @@ app.post('/devices', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'FCM token is required' })
     }
 
+    // Check if user exists
+    const userResult = await pool.query(
+      'SELECT id FROM users WHERE id = $1',
+      [userId]
+    )
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+
     // Check if device already exists
     const existingDevice = await pool.query(
       'SELECT id FROM devices WHERE fcm_token = $1',
@@ -2072,10 +2867,69 @@ app.post('/devices', authenticateToken, async (req, res) => {
   }
 })
 
+// Re-authentication endpoint
+app.post('/reauth', async (req, res) => {
+  try {
+    const { idToken, accessToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ error: 'Missing Google ID token.' });
+    }
+
+    // Verify the Google ID token
+    const ticket = await oauth2Client.verifyIdToken({
+      idToken: idToken,
+      audience: [
+        '493373719535-68sbv92kmtnvujjclqja8bkt6kc0i8bs.apps.googleusercontent.com', // Web client ID
+        '493373719535-v990sc2u46lgga6nkbt962isqr7518ni.apps.googleusercontent.com'  // iOS client ID
+      ],
+    });
+    const payload = ticket.getPayload();
+    const googleId = payload['sub'];
+    const email = payload['email'];
+
+    if (!googleId || !email) {
+      return res.status(400).json({ error: 'Invalid Google token: missing googleId or email.' });
+    }
+
+    // Find user
+    const userResult = await pool.query('SELECT * FROM users WHERE google_id = $1', [googleId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Store the access token temporarily for immediate Gmail API access
+    if (accessToken) {
+      await pool.query(
+        'UPDATE users SET temp_access_token = $1, temp_token_expiry = $2 WHERE id = $3',
+        [accessToken, Date.now() + (3600 * 1000), user.id] // 1 hour expiry
+      );
+    }
+
+    // Generate new JWT tokens
+    const appToken = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
+    const refreshTokenJwt = jwt.sign({ userId: user.id, type: 'refresh' }, REFRESH_JWT_SECRET, { expiresIn: '90d' });
+
+    res.json({ 
+      token: appToken, 
+      refreshToken: refreshTokenJwt, 
+      expiresIn: 3600,
+      user: { id: user.id, email: user.email }
+    });
+  } catch (error) {
+    console.error('Error in re-authentication:', error);
+    res.status(500).json({ error: 'Re-authentication failed' });
+  }
+});
+
 // --- SERVER STARTUP ---
 const PORT = process.env.PORT || 3000
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Newsletter Reader Backend (PostgreSQL) listening on port ${PORT}`)
+  
+  // Database initialization (including seeding) is handled in initializeDatabase()
 })
 
 // Export for testing

@@ -52,7 +52,7 @@ describe('PostgreSQL API Endpoints - Working Tests', () => {
     it('should return 200 and ok status', async () => {
       const response = await request(app).get('/health');
       expect(response.status).toBe(200);
-      expect(response.text).toBe('ok');
+      expect(response.body.status).toBe('OK');
     });
   });
 
@@ -188,7 +188,7 @@ describe('PostgreSQL API Endpoints - Working Tests', () => {
             subject: 'Test Message',
             body_html: '<p>Test</p>',
             received_at: '2024-01-01T00:00:00Z',
-            read: false,
+            is_read: false,
             archived: false
           }
         ];
@@ -200,7 +200,7 @@ describe('PostgreSQL API Endpoints - Working Tests', () => {
           .set('Authorization', `Bearer ${token}`);
 
         expect(response.status).toBe(200);
-        expect(response.body.messages).toEqual(mockMessages);
+        expect(response.body).toEqual(mockMessages);
       });
     });
   });

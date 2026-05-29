@@ -6,9 +6,12 @@ CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     google_id TEXT UNIQUE NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    name TEXT,
+    picture TEXT,
     google_refresh_token TEXT,
     temp_access_token TEXT,
     temp_token_expiry BIGINT,
+    push_notifications_enabled BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_known_history_id TEXT,
@@ -27,7 +30,7 @@ CREATE TABLE IF NOT EXISTS senders (
     featured BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(email, list_id)
+    CONSTRAINT senders_email_unique UNIQUE (email)
 );
 
 -- Messages Table: Stores individual email messages
@@ -72,7 +75,13 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_sender_id ON subscriptions(sender_id);
 CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
 
--- Sample data removed - newsletters will be dynamically discovered from user Gmail
+-- Insert some sample data for development
+INSERT INTO senders (name, email, description, category, subscriber_count, featured) VALUES
+('TechCrunch', 'noreply@techcrunch.com', 'Latest technology news and startup coverage', 'Technology', 1500000, TRUE),
+('The Hustle', 'hello@thehustle.co', 'Business news and startup insights', 'Business', 800000, TRUE),
+('Morning Brew', 'hello@morningbrew.com', 'Daily business newsletter', 'Business', 2000000, TRUE),
+('Product Hunt', 'hello@producthunt.com', 'Discover the latest products and startups', 'Technology', 500000, FALSE)
+ON CONFLICT (email, list_id) DO NOTHING;
 
 -- Create a function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

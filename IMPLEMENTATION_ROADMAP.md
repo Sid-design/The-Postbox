@@ -31,7 +31,7 @@ Use the check-boxes to track progress (`☐` = not started, `⧗` = in progress,
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
 | 2.1 | Select Tech Stack | • Choose language (Node, Python, Go)<br>• Pick framework (Express / FastAPI / Flask / Fiber) | Decision noted in `docs/ADR-001-stack.md` | ✅ |
-| 2.2 | Database Schema | • Design tables: `messages`, `senders`, `devices`<br>• Add `users` and `subscriptions` tables | `db/schema.sql` | ✅ |
+| 2.2 | Database Schema | • Design tables: `messages`, `senders`, `devices`<br>• Add `users` and `subscriptions` tables | PostgreSQL schema in `backend/index-postgres.js` | ✅ |
 | 2.3 | Mail Integration (Gmail) | • ~~GCP Config (APIs, OAuth, Pub/Sub)~~<br>• ~~Implement backend OAuth flow~~<br>• ~~Code Pub/Sub listener~~ | Service that logs new message IDs | ✅ |
 | 2.4 | Mail Integration (IMAP fallback) | • IMAP IDLE listener with reconnect logic | IMAP poller service | ☐ |
 | 2.5 | Message Fetch & Parse | • Fetch RFC822 using message ID<br>• Extract `senderName`, `subject`, `bodyHtml`<br>• Save to DB based on subscription | Parsed record in DB | ✅ |
@@ -104,9 +104,10 @@ _React Native_ is assumed.
 
 | Step | Description | Tasks | Deliverable | Status |
 |------|-------------|-------|-------------|--------|
+| **8.0 Preview Build** | Standalone internal build for device testing | • EAS preview profile build<br>• Bakes in Fly.io backend URL<br>• No Metro server needed<br>• Install directly via URL | App running standalone on device | ⧗ |
 | **8.1 TestFlight Setup** | Beta testing distribution via Apple TestFlight | • Apple Developer Program ($99/year)<br>• App Store Connect setup<br>• Build signing & upload<br>• Tester management | TestFlight app ready for beta users | ☐ |
 | **8.2 CI/CD Pipeline** | Automated build, test, & deployment pipeline | • EAS Build configuration<br>• Environment setup (Dev/Staging/Prod)<br>• Automated testing<br>• Release management | Full CI/CD pipeline | ☐ |
-| **8.3 Backend Hosting** | Production server & database hosting | • Choose hosting provider (Vercel/Render/DigitalOcean)<br>• Database migration (SQLite → PostgreSQL)<br>• Environment configuration<br>• Domain & SSL setup | Scalable backend infrastructure | ☐ |
+| **8.3 Backend Hosting** | Production server & database hosting | • ~~Railway (lapsed)~~ → **Fly.io** ✅<br>• Fly Postgres attached (`the-postbox-db`)<br>• All secrets configured<br>• Live at `https://the-postbox-backend.fly.dev` | Scalable backend infrastructure | ✅ |
 | **8.4 UAT Environment** | User Acceptance Testing environment | • Separate staging environment<br>• Beta user onboarding<br>• Feedback collection system<br>• Bug tracking integration | UAT-ready environment | ☐ |
 | **8.5 Analytics & Monitoring** | Comprehensive app & backend monitoring | • Firebase Analytics setup<br>• Crash reporting<br>• Performance monitoring<br>• User behavior tracking | Analytics dashboard | ☐ |
 | **8.6 Production Launch** | App Store submission & launch | • App Store optimization<br>• Final testing & QA<br>• Launch strategy<br>• Post-launch monitoring | Live app in App Store | ☐ |
@@ -119,7 +120,7 @@ _React Native_ is assumed.
 |------|-------|
 | Search within newsletters | Full-text search on `subject` / `body` |
 | Sender-based grouping | Show list of senders with unread counts |
-| Offline caching | Store recent messages in device SQLite |
+| Offline caching | Store recent messages in device storage |
 | Analytics dashboard | Engagement (opens, clicks) |
 | Discover Feed | A curated/categorized list of popular newsletters users can subscribe to.<br>• Add `category` to `senders` table. |
 | **Advanced Analytics** | **The current schema is designed to support future analytics (e.g., sender popularity, user engagement trends). This capability should be enhanced as new features are added.** |

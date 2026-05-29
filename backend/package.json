@@ -1,9 +1,9 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "index-postgres.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node index-postgres.js",
     "build": "echo \"Build complete\"",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -19,6 +19,7 @@
     "@google-cloud/pubsub": "^5.1.0",
     "compression": "^1.8.1",
     "dotenv": "^16.4.5",
+    "expo-server-sdk": "^4.0.0",
     "express": "^5.1.0",
     "firebase-admin": "^13.4.0",
     "googleapis": "^153.0.0",

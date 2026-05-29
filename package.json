@@ -8,7 +8,6 @@
     "mobile"
   ],
   "scripts": {
-    "start": "node start.js",
     "backend": "cd backend && npm start",
     "mobile": "cd mobile && npm start",
     "lint": "eslint .",
