@@ -255,9 +255,30 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 
 ## Important Gotchas
 
-1. **iOS build from Windows:** Must use EAS Build (cloud). Cannot run `pod install` locally. Any native config changes require a new EAS build.
-2. **OAuth Client ID must be iOS type:** Using a web-type client ID causes `400 invalid_request` during sign-in.
-3. **Bundle ID hardcoded in `Info.plist`:** EAS was ignoring `app.json` because a native `ios/` directory exists. The value in `ios/mobile/Info.plist` is authoritative.
-4. **Legacy `received_at` format:** Old DB rows stored epoch milliseconds; new rows store ISO strings. The `parseDate` utility in `InboxScreen.tsx` handles both.
-5. **Backend is one file:** `backend/index-postgres.js` is intentionally monolithic (~99KB). All logic lives there for now.
-6. **Pub/Sub ping privacy:** The Gmail Pub/Sub notification contains no email content — only a notification that mail arrived. The backend fetches sender metadata separately.
+### iOS / EAS Build
+1. **iOS build from Windows:** Must use EAS Build (cloud). Cannot run `pod install` locally. Any native config changes (Info.plist, entitlements, etc.) require a new EAS build.
+2. **OAuth Client ID must be iOS type:** Using a web-type client ID causes `400 invalid_request` during sign-in. The iOS client ID is in `mobile/src/config/app.config.ts`.
+3. **Bundle ID hardcoded in `Info.plist`:** EAS ignores `app.json` when a native `ios/` directory exists. `mobile/ios/mobile/Info.plist` is the authoritative source. Dev/preview builds use `io.thepostbox.dev`; production uses `io.thepostbox.app`.
+4. **Dev build ≠ standalone app:** The `development` EAS profile requires Metro bundler running on your laptop. Use `preview` profile for a standalone build.
+5. **EAS `eas.json` lives in `mobile/`:** The root `eas.json` was deleted (it was a duplicate). Only `mobile/eas.json` is used.
+
+### Local Development
+6. **Local IP changes between sessions:** Metro and the backend use your LAN IP. Run `ipconfig | findstr "192.168"` to get current IP and update `mobile/.env` before starting Metro.
+7. **Docker: don't use `docker-compose up` for day-to-day dev:** It creates new containers. Instead use `docker start newsletter-reader-postgres` to resume the existing container that has your data.
+8. **Port 8081 may be held by a previous Metro process:** If Metro hangs on "Starting Metro Bundler", check with `netstat -ano | findstr :8081` and kill the process with PowerShell: `Stop-Process -Id <PID> -Force`.
+9. **Metro tunnel requires `@expo/ngrok`:** `npx expo start --tunnel` prompts to install it in non-interactive mode. Use `--lan` instead (works fine on same WiFi).
+
+### Backend / Fly.io
+10. **Fly.io secrets with credentials are blocked by Claude's classifier:** Commands like `flyctl secrets set JWT_SECRET=...` containing real credentials must be run manually in your own terminal, not through Claude.
+11. **Backend Dockerfile uses `npm install` not `npm ci`:** The backend has its own `package-lock.json` that gets out of sync with the root workspace installs. `npm ci` fails in Docker; `npm install` is the safe choice.
+12. **Backend loads `.env` from parent directory:** `require('dotenv').config({ path: '../.env' })`. On Fly.io the file doesn't exist — that's fine, it silently falls back to process.env (the Fly secrets). No code change needed.
+13. **Firebase falls back to file if env var missing:** If `FIREBASE_SERVICE_ACCOUNT_KEY` is not set, the backend tries to load `./serviceAccountKey.json`. On Fly.io the secret must be set as a compact JSON string.
+
+### Database
+14. **Legacy `received_at` format:** Old DB rows stored epoch milliseconds; new rows store ISO strings. The `parseDate` utility in `InboxScreen.tsx` handles both.
+15. **Three PostgreSQL containers exist locally** — only `newsletter-reader-postgres` is correct (has full schema + data). `newsletter-postgres` and `postgres-dev` are empty duplicates from earlier sessions.
+
+### Git / Repository
+16. **`mobile/` was a submodule with no remote:** Being converted to a regular directory in the root repo. All mobile code now lives in one repo, one push covers everything.
+17. **Backend is one file:** `backend/index-postgres.js` is intentionally monolithic (~99KB). All routes, auth, Pub/Sub, push logic lives there.
+18. **Pub/Sub ping privacy:** The Gmail Pub/Sub notification contains no email content — only a ping. The backend fetches sender metadata separately via Gmail API.
