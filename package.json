@@ -3,16 +3,12 @@
   "version": "1.0.0",
   "description": "Newsletter Reader - A mobile app for managing newsletter subscriptions",
   "private": true,
-  "workspaces": [
-    "backend",
-    "mobile"
-  ],
   "scripts": {
     "backend": "cd backend && npm start",
     "mobile": "cd mobile && npm start",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "npm run test --workspaces"
+    "test": "npm run test --prefix backend && npm run test --prefix mobile"
   },
   "devDependencies": {
     "eslint": "^8.0.0",

@@ -1,0 +1,36 @@
+# EAS Build upload ignore list.
+# NOTE: when this file is present, EAS uses it INSTEAD of .gitignore to decide
+# what to upload. That is intentional here: the native ios/ directory is
+# gitignored (see .gitignore) but this is a BARE workflow project, so EAS must
+# receive ios/. By NOT listing ios/ below, it gets uploaded despite being
+# untracked in git. Keep ios/ source in the upload; only exclude build cruft.
+
+# Dependencies (EAS reinstalls on the build server)
+node_modules/
+
+# Expo local state
+.expo/
+
+# Native build artifacts (regenerated on the build server)
+ios/build/
+ios/Pods/
+ios/DerivedData/
+ios/*.xcworkspace
+**/*.xcuserstate
+android/
+
+# Local environment (machine-specific, never upload)
+.env
+.env.local
+
+# Logs / coverage / OS cruft
+*.log
+npm-debug.log
+yarn-error.log
+coverage/
+.DS_Store
+
+# Tests (not needed for a production/preview build)
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx

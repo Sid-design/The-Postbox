@@ -225,26 +225,28 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 | Area | Status | Notes |
 |---|---|---|
 | Backend migration: Railway → Fly.io | ✅ | Live at https://the-postbox-backend.fly.dev |
-| Preview build (standalone, no Metro needed) | ☐ | **ATTEMPTED — failed. See investigation notes below before retrying.** |
+| Preview build (standalone, no Metro needed) | ⏳ | **Root cause found & fixed 2026-05-29 (see notes below). Rebuild in progress: build `53ceee55-3635-4f51-baa5-450e547430fa`.** |
 | iOS design audit & polish | ☐ | After preview build — need to see it on device to judge |
 | TestFlight beta distribution | ☐ | After design polish |
 | CI/CD pipeline | ☐ | EAS + GitHub Actions (copy pattern from SafariTTS) |
 
-### Preview build — failure investigation notes
+### Preview build — failure root cause & fix (2026-05-29)
 
-A preview build was attempted on 2026-05-29 (build ID `21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) and failed after only ~11 seconds with: `Unknown error. See logs of the Pre-install hook build phase for more information.`
+The first preview build (`21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) failed after ~11s at the Pre-install phase. Investigation in the next session found **two real root causes**, both exposed by the submodule→directory conversion (commit `fa4482a`):
 
-**Before starting the next preview build attempt, investigate these root causes in order:**
+1. **The native `ios/` directory was untracked AND gitignored.** This is a BARE workflow project (`mobile/ios/mobile/Info.plist` is authoritative), so EAS needs the native `ios/` dir. But `mobile/.gitignore` ignores `ios/` and `android/` (lines 82-83), and `git ls-files mobile/ios` returned 0 files. When mobile was a submodule, `ios/` was presumably committed in the submodule; after the conversion it became untracked. EAS got NO native project → pre-install failed. **This was the primary cause.**
 
-1. **EAS CLI is significantly outdated:** Local version is `16.18.1`, latest is `20.x`. Run `npm install -g eas-cli@latest` first. This version gap is the most likely cause of the failure.
+2. **Root `package.json` declared npm `workspaces` (`backend`, `mobile`).** Since the git root is the monorepo root, EAS detected the workspace root and uploaded the whole monorepo, running `npm install` at the root (where `backend`'s server deps live and the `mobile` `eas-build-pre-install` hook doesn't apply).
 
-2. **Mobile was recently converted from git submodule to regular directory (commit `fa4482a`):** Previously, running `eas build` from `mobile/` uploaded only the `mobile/` submodule's git context. Now it uploads the entire root monorepo (including `backend/`, `db/`, etc.) as the git context. EAS may be confused about the project root. Consider adding a `mobile/.easignore` file to exclude non-mobile files from the upload.
+**The fix (applied 2026-05-29):**
 
-3. **`ios/Podfile.lock` is not committed:** For bare workflow, `Podfile.lock` is normally committed so EAS uses pinned pod versions. It's missing because it was never generated after the submodule conversion. This won't cause a pre-install failure but will cause slower/less predictable pod installs. Cannot be fixed on Windows (needs `pod install` on a Mac) — EAS will generate it on the server.
+- **Added `mobile/.easignore`.** When present, EAS uses it INSTEAD of `.gitignore` and copies the **working tree** (not the git archive), so the gitignored-but-on-disk `ios/` dir DOES get uploaded. The `.easignore` deliberately does NOT list `ios/`, but re-lists the usual excludes (`node_modules/`, `.env`, `ios/build/`, `ios/Pods/`, `android/`, etc.) since it replaces `.gitignore`. Verified: upload was 1.2 MB (ios source in, Pods/node_modules out).
+- **Removed `workspaces` from root `package.json`** so EAS treats `mobile/` as a standalone project root (backend + mobile each have their own `package-lock.json`, so both still install independently). Also changed the root `test` script from `npm run test --workspaces` to `npm run test --prefix backend && npm run test --prefix mobile`.
+- **Updated EAS CLI** `16.18.1` → `20.0.0`.
 
-4. **Check the full build logs** at https://expo.dev/accounts/sid-design/projects/newsletter-reader — look at the failed build's detailed log output to see the exact error in the pre-install phase.
+**Gotcha for future builds:** because `ios/` lives only in the working tree (untracked) and reaches EAS via `.easignore`, the canonical native project is NOT in git. If you ever `git clean -fdx` or clone fresh, `mobile/ios/` is gone and must be regenerated (`npx expo prebuild -p ios`). Consider committing `ios/` (remove it from `.gitignore`, `git add mobile/ios`) for reproducibility — deferred for now.
 
-5. **The `eas-build-pre-install` script** in `mobile/package.json` is `npm config set legacy-peer-deps true`. This should not fail, but verify it's running in the correct directory context after the monorepo restructure.
+`ios/Podfile.lock` is still not committed (can't run `pod install` on Windows). EAS generates it on the server; not a pre-install blocker.
 
 ### Backlog
 
@@ -278,6 +280,8 @@ A preview build was attempted on 2026-05-29 (build ID `21d54126-e172-45b9-ad0c-c
 3. **Bundle ID hardcoded in `Info.plist`:** EAS ignores `app.json` when a native `ios/` directory exists. `mobile/ios/mobile/Info.plist` is the authoritative source. Dev/preview builds use `io.thepostbox.dev`; production uses `io.thepostbox.app`.
 4. **Dev build ≠ standalone app:** The `development` EAS profile requires Metro bundler running on your laptop. Use `preview` profile for a standalone build.
 5. **EAS `eas.json` lives in `mobile/`:** The root `eas.json` was deleted (it was a duplicate). Only `mobile/eas.json` is used.
+6. **`mobile/ios/` is gitignored & reaches EAS via `.easignore`:** This is a bare workflow project but `ios/`/`android/` are gitignored and untracked. `mobile/.easignore` (which replaces `.gitignore` for EAS and uploads the working tree) is what gets the native `ios/` dir to the build server. Do not delete `.easignore`, and don't `git clean` away `mobile/ios/`. See "Preview build root cause & fix" above.
+7. **Root `package.json` no longer uses npm `workspaces`:** Removed so EAS treats `mobile/` as a standalone project root. Backend + mobile each manage their own `node_modules`/`package-lock.json`. Run tests per-package or via the root `test` script (`--prefix backend` / `--prefix mobile`).
 
 ### Local Development
 6. **Local IP changes between sessions:** Metro and the backend use your LAN IP. Run `ipconfig | findstr "192.168"` to get current IP and update `mobile/.env` before starting Metro.
