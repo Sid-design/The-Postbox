@@ -278,7 +278,12 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 14. **Legacy `received_at` format:** Old DB rows stored epoch milliseconds; new rows store ISO strings. The `parseDate` utility in `InboxScreen.tsx` handles both.
 15. **Three PostgreSQL containers exist locally** — only `newsletter-reader-postgres` is correct (has full schema + data). `newsletter-postgres` and `postgres-dev` are empty duplicates from earlier sessions.
 
+### Security — Credentials
+16. **Never commit credential files to git:** `serviceAccountKey.json` was accidentally committed and found by Google/GitHub scanners (2026-05-29 incident). Required full history rewrite + credential rotation. The `.gitignore` already covers `serviceAccountKey.json` and `.env` — never `git add -f` these.
+17. **Firebase service account changed (2026-05-29):** Old `newsletter-backend-service` SA was deleted. New SA is `firebase-adminsdk-fbsvc@newsletter-reader-app.iam.gserviceaccount.com`. Key is stored as `FIREBASE_SERVICE_ACCOUNT_KEY` Fly.io secret (compact JSON string).
+18. **`backend/index.js` exists in old git history with hardcoded OAuth credentials:** This is the pre-PostgreSQL backend, replaced by `index-postgres.js`. It's not in the working tree. The OAuth secret it contained has been rotated (2026-05-29). History can be cleaned with `git filter-repo --path backend/index.js --invert-paths --force` + force push if desired.
+
 ### Git / Repository
-16. **`mobile/` was a submodule with no remote:** Being converted to a regular directory in the root repo. All mobile code now lives in one repo, one push covers everything.
-17. **Backend is one file:** `backend/index-postgres.js` is intentionally monolithic (~99KB). All routes, auth, Pub/Sub, push logic lives there.
-18. **Pub/Sub ping privacy:** The Gmail Pub/Sub notification contains no email content — only a ping. The backend fetches sender metadata separately via Gmail API.
+19. **`mobile/` was a submodule with no remote:** Converted to a regular directory in the root repo. All mobile code now lives in one repo, one push covers everything.
+20. **Backend is one file:** `backend/index-postgres.js` is intentionally monolithic (~99KB). All routes, auth, Pub/Sub, push logic lives there.
+21. **Pub/Sub ping privacy:** The Gmail Pub/Sub notification contains no email content — only a ping. The backend fetches sender metadata separately via Gmail API.
