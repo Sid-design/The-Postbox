@@ -225,7 +225,7 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 | Area | Status | Notes |
 |---|---|---|
 | Backend migration: Railway → Fly.io | ✅ | Live at https://the-postbox-backend.fly.dev |
-| Preview build (standalone, no Metro needed) | ⏳ | **Black screen since Build 5 (predates Sentry). Root cause = bare-but-managed config mismatch (prebuild skipped → plugins never ran). Session 3 converted to CNG/prebuild + fixed Sentry version. Build 11 pending. See root cause analysis below.** |
+| Preview build (standalone, no Metro needed) | ⏳ | **Black screen since Build 5 (predates Sentry). Root cause = bare-but-managed mismatch (prebuild skipped → plugins never ran). Session 3 converted to CNG/prebuild + fixed Sentry version + UNTRACKED ios/. Build 12 `8b16df25` is the first real prebuild — awaiting device install to confirm it renders. See root cause analysis below.** |
 | iOS design audit & polish | ☐ | After preview build — need to see it on device to judge |
 | TestFlight beta distribution | ☐ | After design polish |
 | CI/CD pipeline | ☐ | EAS + GitHub Actions (copy pattern from SafariTTS) |
@@ -257,7 +257,10 @@ The first preview build (`21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) failed after ~1
 - Build 8 `38737d54` → Added ErrorBoundary + Sentry. Still black screen. Sentry.wrap() identified as cause (see below).
 - Build 9 `3896dc07` → Fixed Sentry.init() always called. Still black screen — Sentry.wrap() still present.
 - Build 10 `9046e569` → ✅ FINISHED but **STILL BLACK**. Removed Sentry.wrap() — this DISPROVED the Sentry-wrap theory.
-- Build 11 (pending) → **CNG migration** (session 3). Bare → managed/prebuild + Sentry version fix.
+- Build 11 `430d1994` → ✅ FINISHED but prebuild was **SKIPPED** ("the ios directory already exists"). `.easignore` excludes `ios/` from the upload but EAS resolves managed-vs-bare by whether `ios/` is **git-TRACKED**. So CNG didn't take effect.
+- Build 12 `8b16df25` → ✅ FINISHED, **prebuild RAN** (`✔ Finished prebuild`, codegen + autolinking for all native modules, Google OAuth scheme present in the generated app). First standalone build ever produced from a real prebuild. **← install this one.**
+
+⚠️ **KEY LESSON:** to switch a project from bare → CNG for EAS, adding `ios/` to `.easignore` is NOT enough. EAS decides the workflow by checking if `ios/` is git-tracked. You must **untrack it** (`git rm -r --cached mobile/ios`) and gitignore it (mirroring how `android/` was already handled). Done in commit `6c3498e`; `mobile/ios` removed from disk + git, `ios/` added to `mobile/.gitignore`.
 
 **Black screen root cause — CORRECTED (2026-05-30, session 3):**
 

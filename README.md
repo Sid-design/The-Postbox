@@ -275,7 +275,9 @@ The project was **bare but authored as managed**. Because a committed `ios/` fol
 
 #### Outcome
 
-- Changes committed on branch `fix/eas-preview-bare-ios`. Build 11 (CNG) pending.
+- **Build 11 (`430d1994`)** still skipped prebuild — `.easignore` excludes `ios/` from the upload, but EAS decides bare-vs-managed by whether `ios/` is **git-tracked**. So `ios/` was untracked + gitignored (`git rm -r --cached mobile/ios`), mirroring how `android/` was already handled.
+- **Build 12 (`8b16df25`)** ✅ — first standalone build produced from a real `expo prebuild` (`✔ Finished prebuild`, codegen + autolinking for all native modules, Google OAuth scheme present in the generated app). Awaiting device install to confirm it renders.
+- Changes committed on branch `fix/eas-preview-bare-ios`.
 - If still black: check `sid-design.sentry.io` for a runtime event, then bisect with a trivial root component to split app-render vs. native-level failure.
 
 ---
