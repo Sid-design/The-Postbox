@@ -2,6 +2,12 @@ import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import { Button, ActivityIndicator, View, useColorScheme } from 'react-native';
+import { initSentry, Sentry } from './src/services/sentry';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+
+// Initialise Sentry before any component renders.
+// No-op when EXPO_PUBLIC_SENTRY_DSN is not set or when __DEV__ is true.
+initSentry();
 
 // Test console logging
 if (__DEV__) {
@@ -317,4 +323,22 @@ function App() {
   );
 }
 
-export default App;
+/**
+ * Root export.
+ *
+ * Wrapped with:
+ *   1. ErrorBoundary  — catches any React render error and shows it as text
+ *      instead of a blank white screen (permanent; make it user-friendly
+ *      before App Store, but keep it).
+ *   2. Sentry.wrap    — enhances Sentry crash reports with React component
+ *      context and navigation breadcrumbs. No-op when Sentry is not init'd.
+ */
+function AppWithBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
+
+export default Sentry.wrap(AppWithBoundary);

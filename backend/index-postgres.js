@@ -7,6 +7,16 @@ const path = require('path')
 // Load environment variables from root directory
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') })
 
+// --- SENTRY (must be initialised before everything else) ---
+const Sentry = require('@sentry/node')
+Sentry.init({
+  dsn: process.env.SENTRY_DSN || '',
+  environment: process.env.NODE_ENV || 'development',
+  // Only active when SENTRY_DSN is set (empty string disables it)
+  enabled: !!process.env.SENTRY_DSN,
+  tracesSampleRate: 0.1,
+})
+
 const express = require('express')
 const { google } = require('googleapis')
 const { PubSub } = require('@google-cloud/pubsub')
@@ -29,6 +39,21 @@ function snippet(token) {
   return token ? token.slice(0, 6) + '...' : 'null'
 }
 
+// --- STRUCTURED LOGGING (Pino) ---
+// All log output is JSON so Fly.io / any log aggregator can filter by field.
+// Use LOG_LEVEL env var to change verbosity (default: 'info').
+// In local dev you can pipe output through `pino-pretty` for readable output:
+//   node index-postgres.js | npx pino-pretty
+const pino = require('pino')
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  formatters: {
+    level: (label) => ({ level: label }),
+  },
+  timestamp: pino.stdTimeFunctions.isoTime,
+  base: { service: 'the-postbox-backend' },
+})
+
 // Recursively extract HTML body from Gmail message payload
 function extractHtml(payload) {
   if (!payload) return ''
@@ -48,62 +73,46 @@ function extractHtml(payload) {
   return ''
 }
 
-// Enhanced logging utility
+// Auth event logging — keeps existing call signature throughout the file
 function logAuth(level, message, data = null) {
-  const timestamp = new Date().toISOString()
-  const logEntry = {
-    timestamp,
-    level,
-    message,
-    data: data ? JSON.stringify(data, null, 2) : null
-  }
-  // Only log essential information to console, not large data objects
-  console.log(`[AUTH-${level}] ${timestamp}: ${message}`)
-  return logEntry
+  const pinoLevel = level === 'ERROR' ? 'error' : level === 'WARN' ? 'warn' : 'info'
+  logger[pinoLevel]({ auth: true, data }, `[AUTH] ${message}`)
 }
 
-// Essential logging utility - only log errors and important events
+// HTTP request logging middleware — only logs errors (4xx/5xx) and slow requests
 function logRequest(req, res, next) {
   const start = Date.now()
-  
-  // Override res.end to log only errors and slow requests
   const originalEnd = res.end
   res.end = function(chunk, encoding) {
     const duration = Date.now() - start
-    
-    // Only log errors (4xx, 5xx) or slow requests (>1000ms)
     if (res.statusCode >= 400 || duration > 1000) {
-      const timestamp = new Date().toISOString()
-      console.log(`[${res.statusCode >= 500 ? 'ERROR' : 'WARN'}] ${timestamp} ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`)
+      const level = res.statusCode >= 500 ? 'error' : 'warn'
+      logger[level]({
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        durationMs: duration,
+      }, `${req.method} ${req.path} ${res.statusCode} (${duration}ms)`)
     }
-    
     originalEnd.call(this, chunk, encoding)
   }
-  
   next()
 }
 
-// Error logging utility
+// Error logging — keeps existing call signature throughout the file
 function logError(error, context = 'Unknown', additionalData = null) {
-  const timestamp = new Date().toISOString()
-  const errorInfo = {
-    timestamp,
+  logger.error({
+    err: { message: error.message || String(error), stack: error.stack },
     context,
-    error: error.message || error,
-    stack: error.stack,
-    additionalData
-  }
-  
-  console.error(`[ERROR] ${timestamp} [${context}]:`, errorInfo)
-  
-  // In production, you might want to send this to a logging service
-  // like Sentry, LogRocket, or your own logging endpoint
+    additionalData,
+  }, `[ERROR] ${context}: ${error.message || error}`)
+  // Also report to Sentry when active
+  Sentry.captureException(error, { extra: { context, additionalData } })
 }
 
-// Performance logging utility
+// Performance logging — keeps existing call signature throughout the file
 function logPerformance(operation, duration, additionalData = null) {
-  const timestamp = new Date().toISOString()
-  console.log(`[PERFORMANCE] ${timestamp} ${operation}: ${duration}ms`, additionalData)
+  logger.info({ operation, durationMs: duration, additionalData }, `[PERF] ${operation}: ${duration}ms`)
 }
 
 // --- FIREBASE SETUP ---
@@ -623,6 +632,11 @@ const authenticateToken = (req, res, next) => {
 }
 
 // --- EXPRESS APP SETUP ---
+// Sentry request handler must be the very first middleware to capture full context
+if (process.env.SENTRY_DSN) {
+  app.use(Sentry.Handlers.requestHandler())
+}
+
 app.use(compression({
   level: 6,
   threshold: 1024,
@@ -2016,8 +2030,13 @@ app.post('/login', async (req, res) => {
 });
 
 // --- ERROR HANDLING ---
+// Sentry error handler must come before any other error middleware
+if (process.env.SENTRY_DSN) {
+  app.use(Sentry.Handlers.errorHandler())
+}
+
 app.use((error, req, res, next) => {
-  console.error('Unhandled error:', error)
+  logger.error({ err: { message: error.message, stack: error.stack } }, 'Unhandled Express error')
   res.status(500).json({ error: 'Internal server error' })
 })
 
@@ -2927,8 +2946,7 @@ app.post('/reauth', async (req, res) => {
 // --- SERVER STARTUP ---
 const PORT = process.env.PORT || 3000
 app.listen(PORT, async () => {
-  console.log(`Newsletter Reader Backend (PostgreSQL) listening on port ${PORT}`)
-  
+  logger.info({ port: PORT, sentry: !!process.env.SENTRY_DSN }, `Backend listening on port ${PORT}`)
   // Database initialization (including seeding) is handled in initializeDatabase()
 })
 
