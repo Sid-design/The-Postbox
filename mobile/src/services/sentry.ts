@@ -18,26 +18,23 @@ import * as Sentry from '@sentry/react-native';
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 
 export function initSentry(): void {
-  if (!DSN) {
-    if (__DEV__) {
-      console.log('[Sentry] DSN not configured — crash reporting disabled');
-    }
-    return;
-  }
-
+  // IMPORTANT: Sentry.init() must always be called — even when disabled —
+  // because Sentry.wrap() (used in App.tsx export) requires the SDK to be
+  // initialised. Calling wrap() on an uninitialised SDK causes a black screen.
   Sentry.init({
-    dsn: DSN,
-    // Only capture events in preview/production — dev builds use Metro overlay
-    enabled: !__DEV__,
+    // Pass undefined (not empty string) when no DSN — Sentry treats '' as invalid
+    dsn: DSN || undefined,
+    // Capture events only in preview/production when a DSN is configured
+    enabled: !!DSN && !__DEV__,
     environment: process.env.EXPO_PUBLIC_APP_VARIANT ?? 'development',
-    // Capture 20 % of transactions for performance monitoring
-    tracesSampleRate: 0.2,
-    // Capture 100 % of sessions (low volume solo app)
-    enableAutoSessionTracking: true,
-    sessionTrackingIntervalMillis: 30000,
-    // Attach JS console.error output as breadcrumbs
+    tracesSampleRate: DSN ? 0.2 : 0,
+    enableAutoSessionTracking: !!DSN,
     attachStacktrace: true,
   });
+
+  if (!DSN && __DEV__) {
+    console.log('[Sentry] DSN not configured — crash reporting disabled');
+  }
 }
 
 // Re-export Sentry so screens can call Sentry.captureException() directly
