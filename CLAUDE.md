@@ -225,7 +225,7 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 | Area | Status | Notes |
 |---|---|---|
 | Backend migration: Railway → Fly.io | ✅ | Live at https://the-postbox-backend.fly.dev |
-| Preview build (standalone, no Metro needed) | ✅ | **Working as of 2026-05-29 — build `ee3d5d3f` succeeded. Five stacked failures fixed; see notes below. Branch `fix/eas-preview-bare-ios` (not yet merged/pushed).** |
+| Preview build (standalone, no Metro needed) | ✅ | **Working as of 2026-05-30 — build `b17f7ccf` succeeded (app launches, named "The Postbox"). All fixes on branch `fix/eas-preview-bare-ios` (not yet merged/pushed).** |
 | iOS design audit & polish | ☐ | After preview build — need to see it on device to judge |
 | TestFlight beta distribution | ☐ | After design polish |
 | CI/CD pipeline | ☐ | EAS + GitHub Actions (copy pattern from SafariTTS) |
@@ -251,7 +251,9 @@ The first preview build (`21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) failed after ~1
 - Build 2 `53ceee55` → failed PREBUILD — `ios/` gitignored ⇒ EAS ran managed prebuild, which crashed on missing `Supporting/Expo.plist` and would have clobbered the custom `Info.plist`.
 - Build 3 `0fde6073` → PREBUILD SKIPPED (bare worked!), failed INSTALL_PODS — Podfile `use_native_modules!` needs `@react-native-community/cli`, which was missing (it had been hoisted under npm workspaces; dropping workspaces exposed it was never a direct dep). Fixed by adding `@react-native-community/cli` + `cli-platform-ios` + `cli-platform-android` @ `18.0.1` to mobile devDeps. Verified locally: `node -e "process.argv=['','','config'];require('@react-native-community/cli').run()"` emits valid autolinking JSON.
 - Build 4 `10a5f982` → COMPILE + ARCHIVE + CODESIGN succeeded, failed at fastlane EXPORT: `exportArchive requires a provisioning profile / No provisioning profile provided`. Cause: `Info.plist` hardcoded `CFBundleIdentifier = io.thepostbox.dev` while the Xcode project, EAS credentials, and the AdHoc provisioning profile all use `io.thepostbox.app`; the export options only had a profile for `io.thepostbox.app`, so the app's real bundle ID didn't match. Fixed by setting `CFBundleIdentifier` to `$(PRODUCT_BUNDLE_IDENTIFIER)` (RN-standard) so it resolves to `io.thepostbox.app`.
-- Build 5 `ee3d5d3f` → ✅ **FINISHED.** IPA: internal AdHoc, `io.thepostbox.app`, v1.0 build 10, provisioned for device UDID `00008110-0008693A22F0A01E`. Install via the build's page on expo.dev (standalone, no Metro).
+- Build 5 `ee3d5d3f` → ✅ FINISHED. But app showed as "mobile" on home screen and was blank on launch.
+- Build 6 `bb57df86` → CANCELLED (intentional — spotted another bug before compile).
+- Build 7 `b17f7ccf` → ✅ **FINISHED — app works.** Two additional fixes: (a) AppDelegate was mounting module name `newsletter-reader` but `registerRootComponent` always registers as `"main"` → blank screen; fixed to `"main"`. (b) `CFBundleDisplayName` was template default `"mobile"` → set to `"The Postbox"`. Also added `EXPO_BABEL_NO_ADD_REANIMATED_PLUGIN=1` to preview/production profiles (babel.config.js manually adds reanimated plugin; without this flag, babel-preset-expo adds it a second time → release-only blank screen). IPA: `io.thepostbox.app`, v1.0 build 10, AdHoc, provisioned for device UDID `00008110-0008693A22F0A01E`.
 
 **Bundle ID in bare mode:** the native `ios/mobile.xcodeproj` hardcodes `PRODUCT_BUNDLE_IDENTIFIER = io.thepostbox.app` for BOTH Debug and Release, and `Info.plist` now uses `CFBundleIdentifier = $(PRODUCT_BUNDLE_IDENTIFIER)`. So in bare mode ALL profiles (dev/preview/production) build `io.thepostbox.app` — the old per-variant `io.thepostbox.dev` only applied in managed mode. **Implication:** preview and production share a bundle ID, so they can't coexist on a device and share one App Store identity. To restore a dev/prod split, set per-config `PRODUCT_BUNDLE_IDENTIFIER` in the pbxproj (e.g. `io.thepostbox.dev` for Debug) and have EAS generate a matching provisioning profile.
 
