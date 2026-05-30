@@ -225,7 +225,7 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 | Area | Status | Notes |
 |---|---|---|
 | Backend migration: Railway → Fly.io | ✅ | Live at https://the-postbox-backend.fly.dev |
-| Preview build (standalone, no Metro needed) | ✅ | **Working as of 2026-05-30 — build `b17f7ccf` succeeded (app launches, named "The Postbox"). All fixes on branch `fix/eas-preview-bare-ios` (not yet merged/pushed).** |
+| Preview build (standalone, no Metro needed) | ⏳ | **IPA builds successfully but app shows black screen on launch. Build `9046e569` in progress — see root cause analysis below.** |
 | iOS design audit & polish | ☐ | After preview build — need to see it on device to judge |
 | TestFlight beta distribution | ☐ | After design polish |
 | CI/CD pipeline | ☐ | EAS + GitHub Actions (copy pattern from SafariTTS) |
@@ -253,7 +253,13 @@ The first preview build (`21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) failed after ~1
 - Build 4 `10a5f982` → COMPILE + ARCHIVE + CODESIGN succeeded, failed at fastlane EXPORT: `exportArchive requires a provisioning profile / No provisioning profile provided`. Cause: `Info.plist` hardcoded `CFBundleIdentifier = io.thepostbox.dev` while the Xcode project, EAS credentials, and the AdHoc provisioning profile all use `io.thepostbox.app`; the export options only had a profile for `io.thepostbox.app`, so the app's real bundle ID didn't match. Fixed by setting `CFBundleIdentifier` to `$(PRODUCT_BUNDLE_IDENTIFIER)` (RN-standard) so it resolves to `io.thepostbox.app`.
 - Build 5 `ee3d5d3f` → ✅ FINISHED. But app showed as "mobile" on home screen and was blank on launch.
 - Build 6 `bb57df86` → CANCELLED (intentional — spotted another bug before compile).
-- Build 7 `b17f7ccf` → ✅ **FINISHED — app works.** Two additional fixes: (a) AppDelegate was mounting module name `newsletter-reader` but `registerRootComponent` always registers as `"main"` → blank screen; fixed to `"main"`. (b) `CFBundleDisplayName` was template default `"mobile"` → set to `"The Postbox"`. Also added `EXPO_BABEL_NO_ADD_REANIMATED_PLUGIN=1` to preview/production profiles (babel.config.js manually adds reanimated plugin; without this flag, babel-preset-expo adds it a second time → release-only blank screen). IPA: `io.thepostbox.app`, v1.0 build 10, AdHoc, provisioned for device UDID `00008110-0008693A22F0A01E`.
+- Build 7 `b17f7ccf` → ✅ IPA builds and installs, named "The Postbox" — but blank/black screen on launch.
+- Build 8 `38737d54` → Added ErrorBoundary + Sentry. Still black screen. Sentry.wrap() identified as cause (see below).
+- Build 9 `3896dc07` → Fixed Sentry.init() always called. Still black screen — Sentry.wrap() still present.
+- Build 10 `9046e569` → **IN PROGRESS.** Removed Sentry.wrap() (root cause of black screen). Also cleaned up import ordering in App.tsx. Sentry DSN now embedded. Install this one.
+
+**Black screen root cause (identified end of session 2026-05-30):**
+`Sentry.wrap()` wraps the root component in `TouchEventBoundary + Profiler`, placing them ABOVE the `ErrorBoundary`. When the native Sentry SDK is not fully initialised (no DSN, or `enabled:false`), these Sentry components throw silently. Because they're above the ErrorBoundary, the boundary can't catch them → React renders nothing → black screen (native UIWindow background). Fix: removed `Sentry.wrap()`. `Sentry.init()` alone captures all crashes via the global error handler. `wrap()` only added touch-event breadcrumbs which are not essential.
 
 **Bundle ID in bare mode:** the native `ios/mobile.xcodeproj` hardcodes `PRODUCT_BUNDLE_IDENTIFIER = io.thepostbox.app` for BOTH Debug and Release, and `Info.plist` now uses `CFBundleIdentifier = $(PRODUCT_BUNDLE_IDENTIFIER)`. So in bare mode ALL profiles (dev/preview/production) build `io.thepostbox.app` — the old per-variant `io.thepostbox.dev` only applied in managed mode. **Implication:** preview and production share a bundle ID, so they can't coexist on a device and share one App Store identity. To restore a dev/prod split, set per-config `PRODUCT_BUNDLE_IDENTIFIER` in the pbxproj (e.g. `io.thepostbox.dev` for Debug) and have EAS generate a matching provisioning profile.
 
@@ -316,6 +322,13 @@ The first preview build (`21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) failed after ~1
 16. **Never commit credential files to git:** `serviceAccountKey.json` was accidentally committed and found by Google/GitHub scanners (2026-05-29 incident). Required full history rewrite + credential rotation. The `.gitignore` already covers `serviceAccountKey.json` and `.env` — never `git add -f` these.
 17. **Firebase service account changed (2026-05-29):** Old `newsletter-backend-service` SA was deleted. New SA is `firebase-adminsdk-fbsvc@newsletter-reader-app.iam.gserviceaccount.com`. Key is stored as `FIREBASE_SERVICE_ACCOUNT_KEY` Fly.io secret (compact JSON string).
 18. **`backend/index.js` exists in old git history with hardcoded OAuth credentials:** This is the pre-PostgreSQL backend, replaced by `index-postgres.js`. It's not in the working tree. The OAuth secret it contained has been rotated (2026-05-29). History can be cleaned with `git filter-repo --path backend/index.js --invert-paths --force` + force push if desired.
+
+### Crash Reporting (Sentry)
+22. **Sentry is set up but `Sentry.wrap()` must NOT be used.** It places native Sentry components (TouchEventBoundary, Profiler) above the ErrorBoundary, causing a silent black screen if the native SDK isn't fully initialised. Only call `Sentry.init()` — it captures all crashes via the global error handler. See `mobile/src/services/sentry.ts`.
+23. **Sentry DSN is in `mobile/eas.json`** (preview + production profiles). If you rotate the DSN, update both profiles. The dev profile intentionally has no DSN (uses Metro error overlay instead).
+24. **Backend Sentry DSN must be a Fly.io secret:** `flyctl secrets set SENTRY_DSN="<dsn>" --app the-postbox-backend`. The DSN itself (`https://ddd761b473877c4f840cb143a3be1719@o4511480100880384.ingest.de.sentry.io/4511480141185104`) is safe to store in docs — it's a public client identifier, not a secret.
+25. **Sentry dashboard:** `sid-design.sentry.io` — two projects: `react-native` (mobile) and `the-postbox-backend` (Node.js/Express).
+26. **Backend structured logging uses Pino.** JSON output — readable in `flyctl logs`. Pipe through `npx pino-pretty` locally for human-readable output: `node index-postgres.js | npx pino-pretty`. Existing logging function signatures (logAuth, logError, etc.) are unchanged — only their implementations now use pino.
 
 ### Git / Repository
 19. **`mobile/` was a submodule with no remote:** Converted to a regular directory in the root repo. All mobile code now lives in one repo, one push covers everything.
