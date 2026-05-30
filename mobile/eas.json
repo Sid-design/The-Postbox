@@ -26,7 +26,8 @@
         "EXPO_BABEL_NO_ADD_REANIMATED_PLUGIN": "1",
         "EXPO_PUBLIC_APP_NAME": "The Postbox (Preview)",
         "EXPO_PUBLIC_APP_VARIANT": "development",
-        "EXPO_PUBLIC_API_URL": "https://the-postbox-backend.fly.dev"
+        "EXPO_PUBLIC_API_URL": "https://the-postbox-backend.fly.dev",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://191133e56fc312a75b017e76712040de@o4511480100880384.ingest.de.sentry.io/4511480109072464"
       }
     },
     "production": {
@@ -39,7 +40,8 @@
         "EXPO_BABEL_NO_ADD_REANIMATED_PLUGIN": "1",
         "EXPO_PUBLIC_APP_NAME": "The Postbox",
         "EXPO_PUBLIC_APP_VARIANT": "production",
-        "EXPO_PUBLIC_API_URL": "https://the-postbox-backend.fly.dev"
+        "EXPO_PUBLIC_API_URL": "https://the-postbox-backend.fly.dev",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://191133e56fc312a75b017e76712040de@o4511480100880384.ingest.de.sentry.io/4511480109072464"
       }
     }
   },
