@@ -1,12 +1,7 @@
 import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
-import { Button, ActivityIndicator, View, useColorScheme } from 'react-native';
-
-// Test console logging
-if (__DEV__) {
-  console.log('🚀 Newsletter Reader App Started');
-}
+import { ActivityIndicator, View, useColorScheme } from 'react-native';
 import { NavigationContainer, useTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 // @ts-ignore - module will be available once dependency is installed
@@ -28,6 +23,13 @@ import { navigationTheme } from './src/navigation/navigationTheme';
 import SavedScreen from './src/screens/SavedScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ConnectedMailboxesScreen from './src/screens/ConnectedMailboxesScreen';
+import { initSentry } from './src/services/sentry';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+
+// Initialise Sentry crash reporting as early as possible.
+// Must be called before any component renders.
+// No-op when EXPO_PUBLIC_SENTRY_DSN is not set or __DEV__ is true.
+initSentry();
 
 // (Unused root stack removed – each tab manages its own stack)
 
@@ -240,6 +242,7 @@ const MainTabs = () => {
 
 const AuthNavigator = () => {
   const { authToken, isLoading } = useAuth();
+  const { colors } = useTheme();
 
   useEffect(() => {
     if (authToken) {
@@ -284,7 +287,7 @@ const AuthNavigator = () => {
   if (isLoading) {
     // We are still checking for a token
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" />
       </View>
     );
@@ -317,4 +320,20 @@ function App() {
   );
 }
 
-export default App;
+/**
+ * Root export — ErrorBoundary is the outermost React wrapper.
+ *
+ * IMPORTANT: Sentry.wrap() was intentionally removed. It places
+ * TouchEventBoundary + Profiler ABOVE the ErrorBoundary, so any throw
+ * inside those Sentry components causes a silent black screen instead of
+ * showing our error UI. Sentry.init() (called above) is sufficient for crash
+ * capture via the global error handler. Sentry.wrap() only added touch-event
+ * breadcrumbs — a nice-to-have, not required for crash reporting.
+ */
+export default function AppWithBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}

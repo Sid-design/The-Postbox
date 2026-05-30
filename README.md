@@ -6,7 +6,7 @@ This project is a mobile application designed to provide a clean, focused readin
 
 - **Backend:** Node.js with Express, connecting to a PostgreSQL database. It uses the Gmail API and Pub/Sub for real-time email processing.
 - **Backend Testing:** The backend API is tested using Jest and Supertest to ensure all endpoints are reliable and secure.
-- **Mobile App:** Built with React Native (Bare Workflow).
+- **Mobile App:** Built with React Native + Expo (CNG / managed prebuild — EAS regenerates the native `ios/`/`android/` projects from `mobile/app.config.js` on the build server). _Note: this was a bare workflow until 2026-05-30; it was migrated to CNG because the bare setup skipped prebuild and the config plugins never ran, which caused a standalone black screen. See the session log below._
 - **Development Strategy:** The project follows an **iOS-first** development strategy. Builds for the iOS platform are created using **Expo Application Services (EAS) Build**, which allows for building and deploying to physical devices from a non-macOS development environment.
 
 ## Design and Theming
@@ -225,6 +225,64 @@ After resolving the bundle identifier, the EAS build process began failing durin
 - Project root cleaned up to essential files only
 - Dev build working on device with local backend
 - Migration to Fly.io in progress
+
+### Session 7: Preview Build Working (Bare Workflow Fixes)
+
+**Date:** May 29, 2026
+
+**Goal:** Get a standalone preview build (no Metro) building on EAS. The first preview attempt had failed at the Pre-install phase.
+
+#### Root Causes & Fixes
+
+The build had **five stacked failures** — each fix surfaced the next phase's problem:
+
+1. **EAS CLI outdated** — updated `16.18.1` → `20.0.0`.
+2. **npm `workspaces`** in the root `package.json` made EAS treat the whole monorepo as the project; removed it so `mobile/` is a standalone project root (backend + mobile keep their own lockfiles). Updated the root `test` script accordingly.
+3. **Added `mobile/.easignore`** to control the EAS upload (excludes `Pods/`, `build/`, `node_modules/`, etc.).
+4. **`mobile/ios/` was gitignored and untracked** — so EAS resolved a *managed* workflow and ran `expo prebuild`, which crashed (missing `Supporting/Expo.plist`) and would have overwritten the hand-edited `Info.plist` OAuth config. **Committed `ios/` to git** (verified no secrets) so EAS resolves a *bare* build and skips prebuild.
+5. **`@react-native-community/cli` missing** — the Podfile's `use_native_modules!` autolinking needs it; it had been hoisted under workspaces. Added it + `cli-platform-ios`/`-android` @ `18.0.1`.
+6. **`CFBundleIdentifier` hardcoded to `io.thepostbox.dev`** in `Info.plist` while the Xcode project + provisioning profile use `io.thepostbox.app` — export/signing failed. Changed it to `$(PRODUCT_BUNDLE_IDENTIFIER)`.
+
+#### Outcome
+
+- ✅ Preview build `ee3d5d3f` succeeded — standalone IPA (`io.thepostbox.app`, v1.0 build 10), installable on the registered device without Metro.
+- Fixes are on branch `fix/eas-preview-bare-ios` (not yet merged to `master`).
+- **Note:** in bare mode all profiles build `io.thepostbox.app`; the old dev/prod bundle-ID split was a managed-mode-only behavior.
+- **The IPA installed but launched to a black screen** — chased over Builds 8–10 (next session).
+
+---
+
+### Session 8: Black Screen Root Cause & CNG Migration
+
+**Date:** May 30, 2026
+
+**Goal:** Fix the standalone black screen. The build installs but launches to a blank/black screen.
+
+#### What the earlier sessions got wrong
+
+Builds 8–10 blamed `Sentry.wrap()`. That was a **misdiagnosis**: Builds 5 and 7 were already blank and **predate Sentry** (added in Build 8), and Build 10 removed `wrap()` and was still black. The standalone app had **never rendered** since the first successful IPA.
+
+#### Actual root cause
+
+The project was **bare but authored as managed**. Because a committed `ios/` folder was uploaded to EAS, prebuild was **skipped**, so every config plugin in `app.config.js` (notifications, font, secure-store, build-properties) plus the `ios`/`scheme` config **never ran**. The Build 10 `expo-doctor` log says it plainly: _"EAS Build will not sync: scheme, ios, plugins."_ The JS bundle itself was fine (the log shows `main.jsbundle` built, Hermes-compiled, and embedded). A second issue: `@sentry/react-native@8.13.0` is incompatible with Expo SDK 53 (expects `~6.14.0`).
+
+#### Fixes
+
+1. **Migrated bare → CNG / managed prebuild.** `mobile/.easignore` now excludes `ios/` and `android/`, so EAS regenerates the native projects from `app.config.js` on the build server (no Mac required).
+2. **Ported all native config into `app.config.js`:** Google OAuth reversed-client-ID URL scheme, App Transport Security, bundle ID `io.thepostbox.app` (unchanged → reuse credentials/OAuth client), deployment target 15.6, and `newArchEnabled: false` (matches the old architecture the app has always run on).
+3. **Downgraded `@sentry/react-native` → `~6.14.0`** and wrapped `initSentry()` in `try/catch` (it runs at module-load, outside the React `ErrorBoundary`).
+4. Gave the auth-loading `View` a theme background color (was transparent → transient black).
+
+#### Outcome
+
+- **Build 11 (`430d1994`)** still skipped prebuild — `.easignore` excludes `ios/` from the upload, but EAS decides bare-vs-managed by whether `ios/` is **git-tracked**. So `ios/` was untracked + gitignored (`git rm -r --cached mobile/ios`), mirroring how `android/` was already handled.
+- **Build 12 (`8b16df25`)** ✅ **— BLACK SCREEN FIXED. The app launches and renders on device** (first time the standalone build has ever rendered). Produced from a real `expo prebuild` (`✔ Finished prebuild`, codegen + autolinking for all native modules, Google OAuth scheme present in the generated app).
+- Changes committed on branch `fix/eas-preview-bare-ios` (ready to merge).
+- **Next:** the app now launches but has functional/UI issues to triage → iOS design audit, then TestFlight.
+
+#### Key takeaway
+
+To migrate an Expo project from **bare → CNG** for EAS Build, adding `ios/` to `.easignore` is **not sufficient** — EAS decides bare-vs-managed by whether `ios/` is **git-tracked**. The native folder must be untracked (`git rm -r --cached mobile/ios`) and gitignored. With `ios/` still tracked, EAS logs _"Skipped running expo prebuild because the ios directory already exists"_ and produces a bare build with none of your `app.config.js` plugins applied — which is exactly what left the app blank for Builds 5–11.
 
 ---
 

@@ -225,26 +225,65 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 | Area | Status | Notes |
 |---|---|---|
 | Backend migration: Railway → Fly.io | ✅ | Live at https://the-postbox-backend.fly.dev |
-| Preview build (standalone, no Metro needed) | ☐ | **ATTEMPTED — failed. See investigation notes below before retrying.** |
-| iOS design audit & polish | ☐ | After preview build — need to see it on device to judge |
+| Preview build (standalone, no Metro needed) | ✅ | **FIXED (Build 12 `8b16df25`, 2026-05-30). App renders on device — black screen gone.** Root cause was bare-but-managed mismatch (prebuild skipped → plugins never ran since Build 5); fixed by migrating to CNG/prebuild + UNTRACKING `ios/` + Sentry version downgrade. See root cause analysis below. Branch `fix/eas-preview-bare-ios` — ready to merge. |
+| iOS design audit & polish | ☐ | **NEXT.** App now launches on device but has functional/UI issues to triage (post-black-screen). |
 | TestFlight beta distribution | ☐ | After design polish |
 | CI/CD pipeline | ☐ | EAS + GitHub Actions (copy pattern from SafariTTS) |
 
-### Preview build — failure investigation notes
+### Preview build — failure root cause & fix (2026-05-29)
 
-A preview build was attempted on 2026-05-29 (build ID `21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) and failed after only ~11 seconds with: `Unknown error. See logs of the Pre-install hook build phase for more information.`
+The first preview build (`21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) failed after ~11s at the Pre-install phase. Investigation in the next session found **two real root causes**, both exposed by the submodule→directory conversion (commit `fa4482a`):
 
-**Before starting the next preview build attempt, investigate these root causes in order:**
+1. **The native `ios/` directory was untracked AND gitignored.** This is a BARE workflow project (`mobile/ios/mobile/Info.plist` is authoritative), so EAS needs the native `ios/` dir. But `mobile/.gitignore` ignores `ios/` and `android/` (lines 82-83), and `git ls-files mobile/ios` returned 0 files. When mobile was a submodule, `ios/` was presumably committed in the submodule; after the conversion it became untracked. EAS got NO native project → pre-install failed. **This was the primary cause.**
 
-1. **EAS CLI is significantly outdated:** Local version is `16.18.1`, latest is `20.x`. Run `npm install -g eas-cli@latest` first. This version gap is the most likely cause of the failure.
+2. **Root `package.json` declared npm `workspaces` (`backend`, `mobile`).** Since the git root is the monorepo root, EAS detected the workspace root and uploaded the whole monorepo, running `npm install` at the root (where `backend`'s server deps live and the `mobile` `eas-build-pre-install` hook doesn't apply).
 
-2. **Mobile was recently converted from git submodule to regular directory (commit `fa4482a`):** Previously, running `eas build` from `mobile/` uploaded only the `mobile/` submodule's git context. Now it uploads the entire root monorepo (including `backend/`, `db/`, etc.) as the git context. EAS may be confused about the project root. Consider adding a `mobile/.easignore` file to exclude non-mobile files from the upload.
+**The fix (applied 2026-05-29):**
 
-3. **`ios/Podfile.lock` is not committed:** For bare workflow, `Podfile.lock` is normally committed so EAS uses pinned pod versions. It's missing because it was never generated after the submodule conversion. This won't cause a pre-install failure but will cause slower/less predictable pod installs. Cannot be fixed on Windows (needs `pod install` on a Mac) — EAS will generate it on the server.
+- **Added `mobile/.easignore`.** When present, EAS uses it INSTEAD of `.gitignore` and copies the **working tree** (not the git archive), so the gitignored-but-on-disk `ios/` dir DOES get uploaded. The `.easignore` deliberately does NOT list `ios/`, but re-lists the usual excludes (`node_modules/`, `.env`, `ios/build/`, `ios/Pods/`, `android/`, etc.) since it replaces `.gitignore`. Verified: upload was 1.2 MB (ios source in, Pods/node_modules out).
+- **Removed `workspaces` from root `package.json`** so EAS treats `mobile/` as a standalone project root (backend + mobile each have their own `package-lock.json`, so both still install independently). Also changed the root `test` script from `npm run test --workspaces` to `npm run test --prefix backend && npm run test --prefix mobile`.
+- **Updated EAS CLI** `16.18.1` → `20.0.0`.
 
-4. **Check the full build logs** at https://expo.dev/accounts/sid-design/projects/newsletter-reader — look at the failed build's detailed log output to see the exact error in the pre-install phase.
+**`ios/` is now COMMITTED to git** (branch `fix/eas-preview-bare-ios`, removed from `.gitignore`). This is what makes EAS resolve a bare build and skip prebuild. Verified no secrets in `ios/` (the Google OAuth client ID in `Info.plist` is a public iOS client ID, not a secret). Do NOT re-add `ios/` to `.gitignore`.
 
-5. **The `eas-build-pre-install` script** in `mobile/package.json` is `npm config set legacy-peer-deps true`. This should not fail, but verify it's running in the correct directory context after the monorepo restructure.
+**Build progressed one phase per fix (each failure was a different, later phase):**
+- Build 1 `21d54126` → failed PRE-INSTALL (~11s) — old monorepo/workspaces config.
+- Build 2 `53ceee55` → failed PREBUILD — `ios/` gitignored ⇒ EAS ran managed prebuild, which crashed on missing `Supporting/Expo.plist` and would have clobbered the custom `Info.plist`.
+- Build 3 `0fde6073` → PREBUILD SKIPPED (bare worked!), failed INSTALL_PODS — Podfile `use_native_modules!` needs `@react-native-community/cli`, which was missing (it had been hoisted under npm workspaces; dropping workspaces exposed it was never a direct dep). Fixed by adding `@react-native-community/cli` + `cli-platform-ios` + `cli-platform-android` @ `18.0.1` to mobile devDeps. Verified locally: `node -e "process.argv=['','','config'];require('@react-native-community/cli').run()"` emits valid autolinking JSON.
+- Build 4 `10a5f982` → COMPILE + ARCHIVE + CODESIGN succeeded, failed at fastlane EXPORT: `exportArchive requires a provisioning profile / No provisioning profile provided`. Cause: `Info.plist` hardcoded `CFBundleIdentifier = io.thepostbox.dev` while the Xcode project, EAS credentials, and the AdHoc provisioning profile all use `io.thepostbox.app`; the export options only had a profile for `io.thepostbox.app`, so the app's real bundle ID didn't match. Fixed by setting `CFBundleIdentifier` to `$(PRODUCT_BUNDLE_IDENTIFIER)` (RN-standard) so it resolves to `io.thepostbox.app`.
+- Build 5 `ee3d5d3f` → ✅ FINISHED. But app showed as "mobile" on home screen and was blank on launch.
+- Build 6 `bb57df86` → CANCELLED (intentional — spotted another bug before compile).
+- Build 7 `b17f7ccf` → ✅ IPA builds and installs, named "The Postbox" — but blank/black screen on launch.
+- Build 8 `38737d54` → Added ErrorBoundary + Sentry. Still black screen. Sentry.wrap() identified as cause (see below).
+- Build 9 `3896dc07` → Fixed Sentry.init() always called. Still black screen — Sentry.wrap() still present.
+- Build 10 `9046e569` → ✅ FINISHED but **STILL BLACK**. Removed Sentry.wrap() — this DISPROVED the Sentry-wrap theory.
+- Build 11 `430d1994` → ✅ FINISHED but prebuild was **SKIPPED** ("the ios directory already exists"). `.easignore` excludes `ios/` from the upload but EAS resolves managed-vs-bare by whether `ios/` is **git-TRACKED**. So CNG didn't take effect.
+- Build 12 `8b16df25` → ✅ FINISHED, **prebuild RAN** (`✔ Finished prebuild`, codegen + autolinking for all native modules, Google OAuth scheme present in the generated app). First standalone build ever produced from a real prebuild. **← install this one.**
+
+⚠️ **KEY LESSON:** to switch a project from bare → CNG for EAS, adding `ios/` to `.easignore` is NOT enough. EAS decides the workflow by checking if `ios/` is git-tracked. You must **untrack it** (`git rm -r --cached mobile/ios`) and gitignore it (mirroring how `android/` was already handled). Done in commit `6c3498e`; `mobile/ios` removed from disk + git, `ios/` added to `mobile/.gitignore`.
+
+**Black screen root cause — CORRECTED (2026-05-30, session 3):**
+
+⚠️ The earlier "`Sentry.wrap()` is the root cause" conclusion was WRONG. Proof: **Build 5 and Build 7 were already blank, and both predate Sentry** (Sentry was first added in Build 8). Build 10 removed `wrap()` and was still blank. The standalone build has been blank since the first IPA that compiled (Build 5) — it has **never once rendered**.
+
+**Actual root cause: the project was in a broken "bare-but-authored-as-managed" state.** Evidence from Build 10's EAS log (`expo-doctor`):
+> "This project contains native project folders but also has native configuration in app.config.js… EAS Build will **not sync**: `scheme`, `ios`, `plugins`."
+
+Because a committed `ios/` folder was uploaded, EAS **skipped prebuild**, so every config plugin in `app.config.js` (expo-notifications, expo-font, expo-secure-store, expo-build-properties) plus the `ios`/`scheme` config **never ran**. Pods autolinked (so the JS modules existed), but the native configuration those plugins inject was absent, and `newArchEnabled`/`deploymentTarget` were no-ops. The JS bundle was fine — Build 10's log shows `main.jsbundle` built, Hermes-compiled and embedded correctly, so packaging was never the problem. Also surfaced by `expo-doctor`: **`@sentry/react-native@8.13.0` is incompatible with Expo SDK 53** (expects `~6.14.0`) — a second, independent failure on Builds 8–10.
+
+**The fix (session 3, 2026-05-30):**
+1. **Converted to CNG / managed prebuild.** `mobile/.easignore` now EXCLUDES `ios/` and `android/` → EAS runs `expo prebuild` on the server and generates the native projects from `app.config.js`. No Mac needed. (This reverses the Build-1 era decision to upload `ios/`.)
+2. **Ported all hand-edited native config into `app.config.js`**: Google OAuth reversed-client-ID URL scheme, App Transport Security (HTTPS-only + local networking), bundle ID `io.thepostbox.app` (unchanged, to reuse existing credentials + Google OAuth client), deployment target 15.6, `newArchEnabled: false` (matches the old architecture the app has always run on — avoid changing arch in the same fix).
+3. **Downgraded `@sentry/react-native` 8.13.0 → ~6.14.0** and wrapped `initSentry()` in try/catch (it runs at module-load, OUTSIDE the ErrorBoundary, so an uncaught throw there blanks the app).
+4. Gave the loading `View` a theme background color (was transparent → transient black).
+
+**Bundle ID:** `app.config.js` sets `io.thepostbox.app` for ALL variants (dev/preview/prod share it for now) so EAS credentials + the Google iOS OAuth client are reused unchanged. Splitting dev/prod IDs later needs new credentials + a matching Google OAuth client (tech debt).
+
+**The committed `ios/` folder is now UNUSED** (excluded from upload via `.easignore`; prebuild regenerates it fresh). It can be `git rm -r`'d later for cleanliness — left in place for now as a reference/rollback point. Do not hand-edit it expecting changes to ship.
+
+`ios/Podfile.lock` is still not committed (can't run `pod install` on Windows). EAS generates it on the server; not a blocker.
+
+**Reading EAS build logs without a Mac / from the CLI:** there is no `eas build:logs` command. Fetch logs via the GraphQL API at `https://api.expo.dev/graphql` using the session secret from `~/.expo/state.json` (`auth.sessionSecret`, sent as the `expo-session` header). Query `builds{byId(buildId:$id){status error{message} logFiles}}` — `logFiles[0]` is a signed GCS URL (expires ~15 min) to the newline-delimited JSON build log. A poller script lives at `~/eas-poll.js`.
 
 ### Backlog
 
@@ -275,9 +314,13 @@ A preview build was attempted on 2026-05-29 (build ID `21d54126-e172-45b9-ad0c-c
 ### iOS / EAS Build
 1. **iOS build from Windows:** Must use EAS Build (cloud). Cannot run `pod install` locally. Any native config changes (Info.plist, entitlements, etc.) require a new EAS build.
 2. **OAuth Client ID must be iOS type:** Using a web-type client ID causes `400 invalid_request` during sign-in. The iOS client ID is in `mobile/src/config/app.config.ts`.
-3. **Bundle ID hardcoded in `Info.plist`:** EAS ignores `app.json` when a native `ios/` directory exists. `mobile/ios/mobile/Info.plist` is the authoritative source. Dev/preview builds use `io.thepostbox.dev`; production uses `io.thepostbox.app`.
+3. **Bundle ID lives in `app.config.js` (CNG):** since session 3 the native `ios/` is regenerated by prebuild, so `app.config.js` is authoritative. All variants currently build `io.thepostbox.app` (shared, to reuse EAS credentials + Google OAuth client). The Google iOS OAuth reversed-client-ID URL scheme is set in `ios.infoPlist.CFBundleURLTypes` — do not drop it or OAuth login breaks.
 4. **Dev build ≠ standalone app:** The `development` EAS profile requires Metro bundler running on your laptop. Use `preview` profile for a standalone build.
 5. **EAS `eas.json` lives in `mobile/`:** The root `eas.json` was deleted (it was a duplicate). Only `mobile/eas.json` is used.
+6. **CNG / managed prebuild (since session 3) — native `ios/`/`android/` are GENERATED, not stored.** EAS runs `expo prebuild` and creates them from `app.config.js` on the build server. ⚠️ A hand-edited `ios/` folder is IGNORED — **all native config (Info.plist keys, URL schemes, entitlements, architecture) MUST live in `app.config.js`.** Do not commit or hand-edit `ios/`.
+7. **🔑 To make EAS run prebuild, `ios/` must be UNTRACKED in git — `.easignore` is NOT enough.** EAS resolves managed-vs-bare by whether `ios/` is git-tracked; if tracked, it logs "Skipped running expo prebuild because the ios directory already exists" and you get a bare build with NONE of your plugins applied (this was the black-screen root cause for Builds 5–11). `mobile/.gitignore` now ignores `ios/` and `android/`, and `.easignore` also excludes them from upload. Never `git add` `mobile/ios`. Verify a real prebuild ran by grepping the build log for `✔ Finished prebuild` (good) vs `Skipped running .expo prebuild.` (bad).
+8. **Verify standalone behavior on a real prebuild, not the bare cache.** The bare build (Builds 5–11) NEVER rendered, so anything "tested" on those was meaningless. The first build that actually exercised the app standalone was Build 12 (CNG). Don't trust a green IPA = working app; install and launch it.
+9. **Root `package.json` no longer uses npm `workspaces`:** Removed so EAS treats `mobile/` as a standalone project root. Backend + mobile each manage their own `node_modules`/`package-lock.json`. Run tests per-package or via the root `test` script (`--prefix backend` / `--prefix mobile`).
 
 ### Local Development
 6. **Local IP changes between sessions:** Metro and the backend use your LAN IP. Run `ipconfig | findstr "192.168"` to get current IP and update `mobile/.env` before starting Metro.
@@ -299,6 +342,21 @@ A preview build was attempted on 2026-05-29 (build ID `21d54126-e172-45b9-ad0c-c
 16. **Never commit credential files to git:** `serviceAccountKey.json` was accidentally committed and found by Google/GitHub scanners (2026-05-29 incident). Required full history rewrite + credential rotation. The `.gitignore` already covers `serviceAccountKey.json` and `.env` — never `git add -f` these.
 17. **Firebase service account changed (2026-05-29):** Old `newsletter-backend-service` SA was deleted. New SA is `firebase-adminsdk-fbsvc@newsletter-reader-app.iam.gserviceaccount.com`. Key is stored as `FIREBASE_SERVICE_ACCOUNT_KEY` Fly.io secret (compact JSON string).
 18. **`backend/index.js` exists in old git history with hardcoded OAuth credentials:** This is the pre-PostgreSQL backend, replaced by `index-postgres.js`. It's not in the working tree. The OAuth secret it contained has been rotated (2026-05-29). History can be cleaned with `git filter-repo --path backend/index.js --invert-paths --force` + force push if desired.
+
+### Debugging "works in dev, broken only in the standalone/release build"
+27. **Diagnostic playbook for standalone-only failures (black screen, crash on launch):** lessons from the Build 5–12 saga —
+    - **Bisect by git history first.** The black screen was blamed on Sentry for 3 builds; one look at the history showed Builds 5 & 7 were already broken *before* Sentry existed. Find the FIRST broken build and see what was/wasn't present then — it instantly exonerates later additions.
+    - **Confirm the JS bundle is even loaded before theorizing about JS.** Grep the EAS log for `Writing bundle output` + `hermesc … main.jsbundle`. In our case the bundle was always built and embedded fine, which ruled out an entire class of causes (and meant it was a runtime/native/config issue, not packaging).
+    - **Read `expo-doctor` output in the build log.** It literally printed the root cause ("EAS Build will not sync: scheme, ios, plugins") and the Sentry version incompatibility. It's a non-fatal phase, so the build still "succeeds" — but its warnings are gold.
+    - **The React `ErrorBoundary` canNOT catch module-load-time errors or native crashes** — only render/lifecycle errors of its descendants. A blank screen with no error UI means the failure is *outside* React (module eval, native init, or no JS running at all). Anything run at module top-level (e.g. `initSentry()`) is outside the boundary — wrap it defensively.
+    - **Get EAS logs without a Mac** via the GraphQL API (see below); a real-prebuild check is `✔ Finished prebuild` vs `Skipped running .expo prebuild.`.
+
+### Crash Reporting (Sentry)
+22. **Sentry version MUST match Expo SDK (`~6.14.0` for SDK 53).** `@sentry/react-native@8.x` is incompatible with Expo 53 and was a red herring in the black-screen saga (session 3 downgraded 8.13.0 → 6.14.0). Run `npx expo install --check` after any Sentry bump. `Sentry.init()` only (NOT `Sentry.wrap()`); `initSentry()` runs at module-load (outside the ErrorBoundary) so it is wrapped in try/catch — keep it that way. See `mobile/src/services/sentry.ts`.
+23. **Sentry DSN is in `mobile/eas.json`** (preview + production profiles). If you rotate the DSN, update both profiles. The dev profile intentionally has no DSN (uses Metro error overlay instead).
+24. **Backend Sentry DSN must be a Fly.io secret:** `flyctl secrets set SENTRY_DSN="<dsn>" --app the-postbox-backend`. The DSN itself (`https://ddd761b473877c4f840cb143a3be1719@o4511480100880384.ingest.de.sentry.io/4511480141185104`) is safe to store in docs — it's a public client identifier, not a secret.
+25. **Sentry dashboard:** `sid-design.sentry.io` — two projects: `react-native` (mobile) and `the-postbox-backend` (Node.js/Express).
+26. **Backend structured logging uses Pino.** JSON output — readable in `flyctl logs`. Pipe through `npx pino-pretty` locally for human-readable output: `node index-postgres.js | npx pino-pretty`. Existing logging function signatures (logAuth, logError, etc.) are unchanged — only their implementations now use pino.
 
 ### Git / Repository
 19. **`mobile/` was a submodule with no remote:** Converted to a regular directory in the root repo. All mobile code now lives in one repo, one push covers everything.
