@@ -225,7 +225,7 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 | Area | Status | Notes |
 |---|---|---|
 | Backend migration: Railway → Fly.io | ✅ | Live at https://the-postbox-backend.fly.dev |
-| Preview build (standalone, no Metro needed) | ⏳ | **IPA builds successfully but app shows black screen on launch. Build `9046e569` in progress — see root cause analysis below.** |
+| Preview build (standalone, no Metro needed) | ⏳ | **Black screen since Build 5 (predates Sentry). Root cause = bare-but-managed config mismatch (prebuild skipped → plugins never ran). Session 3 converted to CNG/prebuild + fixed Sentry version. Build 11 pending. See root cause analysis below.** |
 | iOS design audit & polish | ☐ | After preview build — need to see it on device to judge |
 | TestFlight beta distribution | ☐ | After design polish |
 | CI/CD pipeline | ☐ | EAS + GitHub Actions (copy pattern from SafariTTS) |
@@ -256,12 +256,27 @@ The first preview build (`21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) failed after ~1
 - Build 7 `b17f7ccf` → ✅ IPA builds and installs, named "The Postbox" — but blank/black screen on launch.
 - Build 8 `38737d54` → Added ErrorBoundary + Sentry. Still black screen. Sentry.wrap() identified as cause (see below).
 - Build 9 `3896dc07` → Fixed Sentry.init() always called. Still black screen — Sentry.wrap() still present.
-- Build 10 `9046e569` → **IN PROGRESS.** Removed Sentry.wrap() (root cause of black screen). Also cleaned up import ordering in App.tsx. Sentry DSN now embedded. Install this one.
+- Build 10 `9046e569` → ✅ FINISHED but **STILL BLACK**. Removed Sentry.wrap() — this DISPROVED the Sentry-wrap theory.
+- Build 11 (pending) → **CNG migration** (session 3). Bare → managed/prebuild + Sentry version fix.
 
-**Black screen root cause (identified end of session 2026-05-30):**
-`Sentry.wrap()` wraps the root component in `TouchEventBoundary + Profiler`, placing them ABOVE the `ErrorBoundary`. When the native Sentry SDK is not fully initialised (no DSN, or `enabled:false`), these Sentry components throw silently. Because they're above the ErrorBoundary, the boundary can't catch them → React renders nothing → black screen (native UIWindow background). Fix: removed `Sentry.wrap()`. `Sentry.init()` alone captures all crashes via the global error handler. `wrap()` only added touch-event breadcrumbs which are not essential.
+**Black screen root cause — CORRECTED (2026-05-30, session 3):**
 
-**Bundle ID in bare mode:** the native `ios/mobile.xcodeproj` hardcodes `PRODUCT_BUNDLE_IDENTIFIER = io.thepostbox.app` for BOTH Debug and Release, and `Info.plist` now uses `CFBundleIdentifier = $(PRODUCT_BUNDLE_IDENTIFIER)`. So in bare mode ALL profiles (dev/preview/production) build `io.thepostbox.app` — the old per-variant `io.thepostbox.dev` only applied in managed mode. **Implication:** preview and production share a bundle ID, so they can't coexist on a device and share one App Store identity. To restore a dev/prod split, set per-config `PRODUCT_BUNDLE_IDENTIFIER` in the pbxproj (e.g. `io.thepostbox.dev` for Debug) and have EAS generate a matching provisioning profile.
+⚠️ The earlier "`Sentry.wrap()` is the root cause" conclusion was WRONG. Proof: **Build 5 and Build 7 were already blank, and both predate Sentry** (Sentry was first added in Build 8). Build 10 removed `wrap()` and was still blank. The standalone build has been blank since the first IPA that compiled (Build 5) — it has **never once rendered**.
+
+**Actual root cause: the project was in a broken "bare-but-authored-as-managed" state.** Evidence from Build 10's EAS log (`expo-doctor`):
+> "This project contains native project folders but also has native configuration in app.config.js… EAS Build will **not sync**: `scheme`, `ios`, `plugins`."
+
+Because a committed `ios/` folder was uploaded, EAS **skipped prebuild**, so every config plugin in `app.config.js` (expo-notifications, expo-font, expo-secure-store, expo-build-properties) plus the `ios`/`scheme` config **never ran**. Pods autolinked (so the JS modules existed), but the native configuration those plugins inject was absent, and `newArchEnabled`/`deploymentTarget` were no-ops. The JS bundle was fine — Build 10's log shows `main.jsbundle` built, Hermes-compiled and embedded correctly, so packaging was never the problem. Also surfaced by `expo-doctor`: **`@sentry/react-native@8.13.0` is incompatible with Expo SDK 53** (expects `~6.14.0`) — a second, independent failure on Builds 8–10.
+
+**The fix (session 3, 2026-05-30):**
+1. **Converted to CNG / managed prebuild.** `mobile/.easignore` now EXCLUDES `ios/` and `android/` → EAS runs `expo prebuild` on the server and generates the native projects from `app.config.js`. No Mac needed. (This reverses the Build-1 era decision to upload `ios/`.)
+2. **Ported all hand-edited native config into `app.config.js`**: Google OAuth reversed-client-ID URL scheme, App Transport Security (HTTPS-only + local networking), bundle ID `io.thepostbox.app` (unchanged, to reuse existing credentials + Google OAuth client), deployment target 15.6, `newArchEnabled: false` (matches the old architecture the app has always run on — avoid changing arch in the same fix).
+3. **Downgraded `@sentry/react-native` 8.13.0 → ~6.14.0** and wrapped `initSentry()` in try/catch (it runs at module-load, OUTSIDE the ErrorBoundary, so an uncaught throw there blanks the app).
+4. Gave the loading `View` a theme background color (was transparent → transient black).
+
+**Bundle ID:** `app.config.js` sets `io.thepostbox.app` for ALL variants (dev/preview/prod share it for now) so EAS credentials + the Google iOS OAuth client are reused unchanged. Splitting dev/prod IDs later needs new credentials + a matching Google OAuth client (tech debt).
+
+**The committed `ios/` folder is now UNUSED** (excluded from upload via `.easignore`; prebuild regenerates it fresh). It can be `git rm -r`'d later for cleanliness — left in place for now as a reference/rollback point. Do not hand-edit it expecting changes to ship.
 
 `ios/Podfile.lock` is still not committed (can't run `pod install` on Windows). EAS generates it on the server; not a blocker.
 
@@ -296,10 +311,10 @@ The first preview build (`21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) failed after ~1
 ### iOS / EAS Build
 1. **iOS build from Windows:** Must use EAS Build (cloud). Cannot run `pod install` locally. Any native config changes (Info.plist, entitlements, etc.) require a new EAS build.
 2. **OAuth Client ID must be iOS type:** Using a web-type client ID causes `400 invalid_request` during sign-in. The iOS client ID is in `mobile/src/config/app.config.ts`.
-3. **Bundle ID hardcoded in `Info.plist`:** EAS ignores `app.json` when a native `ios/` directory exists. `mobile/ios/mobile/Info.plist` is the authoritative source. Dev/preview builds use `io.thepostbox.dev`; production uses `io.thepostbox.app`.
+3. **Bundle ID lives in `app.config.js` (CNG):** since session 3 the native `ios/` is regenerated by prebuild, so `app.config.js` is authoritative. All variants currently build `io.thepostbox.app` (shared, to reuse EAS credentials + Google OAuth client). The Google iOS OAuth reversed-client-ID URL scheme is set in `ios.infoPlist.CFBundleURLTypes` — do not drop it or OAuth login breaks.
 4. **Dev build ≠ standalone app:** The `development` EAS profile requires Metro bundler running on your laptop. Use `preview` profile for a standalone build.
 5. **EAS `eas.json` lives in `mobile/`:** The root `eas.json` was deleted (it was a duplicate). Only `mobile/eas.json` is used.
-6. **`mobile/ios/` is gitignored & reaches EAS via `.easignore`:** This is a bare workflow project but `ios/`/`android/` are gitignored and untracked. `mobile/.easignore` (which replaces `.gitignore` for EAS and uploads the working tree) is what gets the native `ios/` dir to the build server. Do not delete `.easignore`, and don't `git clean` away `mobile/ios/`. See "Preview build root cause & fix" above.
+6. **CNG / managed prebuild (since session 3) — `mobile/.easignore` EXCLUDES `ios/` & `android/`:** EAS uploads no native folders, so it runs `expo prebuild` and generates them from `app.config.js`. ⚠️ This means a committed/hand-edited `ios/` folder is IGNORED — all native config (Info.plist keys, URL schemes, entitlements, arch) must live in `app.config.js`. The leftover committed `ios/` is unused (kept for reference; safe to `git rm -r` later). The earlier bare workflow (uploading `ios/`, skipping prebuild) caused the standalone black screen — see "root cause CORRECTED" above. Do not re-add `ios/` to the build upload unless deliberately going bare again.
 7. **Root `package.json` no longer uses npm `workspaces`:** Removed so EAS treats `mobile/` as a standalone project root. Backend + mobile each manage their own `node_modules`/`package-lock.json`. Run tests per-package or via the root `test` script (`--prefix backend` / `--prefix mobile`).
 
 ### Local Development
@@ -324,7 +339,7 @@ The first preview build (`21d54126-e172-45b9-ad0c-cce8a5b2f8ed`) failed after ~1
 18. **`backend/index.js` exists in old git history with hardcoded OAuth credentials:** This is the pre-PostgreSQL backend, replaced by `index-postgres.js`. It's not in the working tree. The OAuth secret it contained has been rotated (2026-05-29). History can be cleaned with `git filter-repo --path backend/index.js --invert-paths --force` + force push if desired.
 
 ### Crash Reporting (Sentry)
-22. **Sentry is set up but `Sentry.wrap()` must NOT be used.** It places native Sentry components (TouchEventBoundary, Profiler) above the ErrorBoundary, causing a silent black screen if the native SDK isn't fully initialised. Only call `Sentry.init()` — it captures all crashes via the global error handler. See `mobile/src/services/sentry.ts`.
+22. **Sentry version MUST match Expo SDK (`~6.14.0` for SDK 53).** `@sentry/react-native@8.x` is incompatible with Expo 53 and was a red herring in the black-screen saga (session 3 downgraded 8.13.0 → 6.14.0). Run `npx expo install --check` after any Sentry bump. `Sentry.init()` only (NOT `Sentry.wrap()`); `initSentry()` runs at module-load (outside the ErrorBoundary) so it is wrapped in try/catch — keep it that way. See `mobile/src/services/sentry.ts`.
 23. **Sentry DSN is in `mobile/eas.json`** (preview + production profiles). If you rotate the DSN, update both profiles. The dev profile intentionally has no DSN (uses Metro error overlay instead).
 24. **Backend Sentry DSN must be a Fly.io secret:** `flyctl secrets set SENTRY_DSN="<dsn>" --app the-postbox-backend`. The DSN itself (`https://ddd761b473877c4f840cb143a3be1719@o4511480100880384.ingest.de.sentry.io/4511480141185104`) is safe to store in docs — it's a public client identifier, not a secret.
 25. **Sentry dashboard:** `sid-design.sentry.io` — two projects: `react-native` (mobile) and `the-postbox-backend` (Node.js/Express).

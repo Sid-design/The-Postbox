@@ -6,7 +6,7 @@ This project is a mobile application designed to provide a clean, focused readin
 
 - **Backend:** Node.js with Express, connecting to a PostgreSQL database. It uses the Gmail API and Pub/Sub for real-time email processing.
 - **Backend Testing:** The backend API is tested using Jest and Supertest to ensure all endpoints are reliable and secure.
-- **Mobile App:** Built with React Native (Bare Workflow).
+- **Mobile App:** Built with React Native + Expo (CNG / managed prebuild — EAS regenerates the native `ios/`/`android/` projects from `mobile/app.config.js` on the build server). _Note: this was a bare workflow until 2026-05-30; it was migrated to CNG because the bare setup skipped prebuild and the config plugins never ran, which caused a standalone black screen. See the session log below._
 - **Development Strategy:** The project follows an **iOS-first** development strategy. Builds for the iOS platform are created using **Expo Application Services (EAS) Build**, which allows for building and deploying to physical devices from a non-macOS development environment.
 
 ## Design and Theming
@@ -248,7 +248,35 @@ The build had **five stacked failures** — each fix surfaced the next phase's p
 - ✅ Preview build `ee3d5d3f` succeeded — standalone IPA (`io.thepostbox.app`, v1.0 build 10), installable on the registered device without Metro.
 - Fixes are on branch `fix/eas-preview-bare-ios` (not yet merged to `master`).
 - **Note:** in bare mode all profiles build `io.thepostbox.app`; the old dev/prod bundle-ID split was a managed-mode-only behavior.
-- Next: merge the branch, install on device, run the iOS design audit, then TestFlight.
+- **The IPA installed but launched to a black screen** — chased over Builds 8–10 (next session).
+
+---
+
+### Session 8: Black Screen Root Cause & CNG Migration
+
+**Date:** May 30, 2026
+
+**Goal:** Fix the standalone black screen. The build installs but launches to a blank/black screen.
+
+#### What the earlier sessions got wrong
+
+Builds 8–10 blamed `Sentry.wrap()`. That was a **misdiagnosis**: Builds 5 and 7 were already blank and **predate Sentry** (added in Build 8), and Build 10 removed `wrap()` and was still black. The standalone app had **never rendered** since the first successful IPA.
+
+#### Actual root cause
+
+The project was **bare but authored as managed**. Because a committed `ios/` folder was uploaded to EAS, prebuild was **skipped**, so every config plugin in `app.config.js` (notifications, font, secure-store, build-properties) plus the `ios`/`scheme` config **never ran**. The Build 10 `expo-doctor` log says it plainly: _"EAS Build will not sync: scheme, ios, plugins."_ The JS bundle itself was fine (the log shows `main.jsbundle` built, Hermes-compiled, and embedded). A second issue: `@sentry/react-native@8.13.0` is incompatible with Expo SDK 53 (expects `~6.14.0`).
+
+#### Fixes
+
+1. **Migrated bare → CNG / managed prebuild.** `mobile/.easignore` now excludes `ios/` and `android/`, so EAS regenerates the native projects from `app.config.js` on the build server (no Mac required).
+2. **Ported all native config into `app.config.js`:** Google OAuth reversed-client-ID URL scheme, App Transport Security, bundle ID `io.thepostbox.app` (unchanged → reuse credentials/OAuth client), deployment target 15.6, and `newArchEnabled: false` (matches the old architecture the app has always run on).
+3. **Downgraded `@sentry/react-native` → `~6.14.0`** and wrapped `initSentry()` in `try/catch` (it runs at module-load, outside the React `ErrorBoundary`).
+4. Gave the auth-loading `View` a theme background color (was transparent → transient black).
+
+#### Outcome
+
+- Changes committed on branch `fix/eas-preview-bare-ios`. Build 11 (CNG) pending.
+- If still black: check `sid-design.sentry.io` for a runtime event, then bisect with a trivial root component to split app-render vs. native-level failure.
 
 ---
 

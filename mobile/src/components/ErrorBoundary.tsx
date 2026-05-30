@@ -15,9 +15,12 @@ interface State {
  * Top-level error boundary. Catches any React render/lifecycle error and
  * displays it as readable text instead of a blank white screen.
  *
- * In production this doubles as the friendly "Something went wrong" screen
- * once Sentry is wired up (Sentry.ErrorBoundary wraps this component in App.tsx).
- * Keep it permanent — remove the detailed stack trace section before App Store.
+ * In production this doubles as the friendly "Something went wrong" screen.
+ * NOTE: this only catches errors thrown during React render/lifecycle of its
+ * descendants. It cannot catch module-load-time errors (e.g. anything thrown
+ * while the JS bundle is first evaluated) or native crashes — those surface as
+ * a blank screen. Keep it permanent — remove the detailed stack trace section
+ * before App Store.
  */
 export class ErrorBoundary extends React.Component<Props, State> {
   state: State = {

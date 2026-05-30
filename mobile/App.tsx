@@ -242,6 +242,7 @@ const MainTabs = () => {
 
 const AuthNavigator = () => {
   const { authToken, isLoading } = useAuth();
+  const { colors } = useTheme();
 
   useEffect(() => {
     if (authToken) {
@@ -286,7 +287,7 @@ const AuthNavigator = () => {
   if (isLoading) {
     // We are still checking for a token
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" />
       </View>
     );
