@@ -276,9 +276,13 @@ The project was **bare but authored as managed**. Because a committed `ios/` fol
 #### Outcome
 
 - **Build 11 (`430d1994`)** still skipped prebuild — `.easignore` excludes `ios/` from the upload, but EAS decides bare-vs-managed by whether `ios/` is **git-tracked**. So `ios/` was untracked + gitignored (`git rm -r --cached mobile/ios`), mirroring how `android/` was already handled.
-- **Build 12 (`8b16df25`)** ✅ — first standalone build produced from a real `expo prebuild` (`✔ Finished prebuild`, codegen + autolinking for all native modules, Google OAuth scheme present in the generated app). Awaiting device install to confirm it renders.
-- Changes committed on branch `fix/eas-preview-bare-ios`.
-- If still black: check `sid-design.sentry.io` for a runtime event, then bisect with a trivial root component to split app-render vs. native-level failure.
+- **Build 12 (`8b16df25`)** ✅ **— BLACK SCREEN FIXED. The app launches and renders on device** (first time the standalone build has ever rendered). Produced from a real `expo prebuild` (`✔ Finished prebuild`, codegen + autolinking for all native modules, Google OAuth scheme present in the generated app).
+- Changes committed on branch `fix/eas-preview-bare-ios` (ready to merge).
+- **Next:** the app now launches but has functional/UI issues to triage → iOS design audit, then TestFlight.
+
+#### Key takeaway
+
+To migrate an Expo project from **bare → CNG** for EAS Build, adding `ios/` to `.easignore` is **not sufficient** — EAS decides bare-vs-managed by whether `ios/` is **git-tracked**. The native folder must be untracked (`git rm -r --cached mobile/ios`) and gitignored. With `ios/` still tracked, EAS logs _"Skipped running expo prebuild because the ios directory already exists"_ and produces a bare build with none of your `app.config.js` plugins applied — which is exactly what left the app blank for Builds 5–11.
 
 ---
 
