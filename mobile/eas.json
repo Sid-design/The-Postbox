@@ -23,6 +23,7 @@
         "resourceClass": "m-medium"
       },
       "env": {
+        "EXPO_BABEL_NO_ADD_REANIMATED_PLUGIN": "1",
         "EXPO_PUBLIC_APP_NAME": "The Postbox (Preview)",
         "EXPO_PUBLIC_APP_VARIANT": "development",
         "EXPO_PUBLIC_API_URL": "https://the-postbox-backend.fly.dev"
@@ -35,6 +36,7 @@
         "resourceClass": "m-medium"
       },
       "env": {
+        "EXPO_BABEL_NO_ADD_REANIMATED_PLUGIN": "1",
         "EXPO_PUBLIC_APP_NAME": "The Postbox",
         "EXPO_PUBLIC_APP_VARIANT": "production",
         "EXPO_PUBLIC_API_URL": "https://the-postbox-backend.fly.dev"
