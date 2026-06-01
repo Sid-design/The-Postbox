@@ -108,7 +108,9 @@ jobs:
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
       - name: Run Maestro flows
-        run: maestro test .maestro --format junit --output maestro-report.xml
+        # --debug-output collects screenshots + a view hierarchy per step into a
+        # known directory we can upload (takeScreenshot otherwise lands in CWD).
+        run: maestro test .maestro --format junit --output maestro-report.xml --debug-output maestro-debug
 
       - name: Upload Maestro artifacts
         if: always()
@@ -117,5 +119,7 @@ jobs:
           name: maestro-results
           path: |
             mobile/maestro-report.xml
+            mobile/maestro-debug/**
+            mobile/login-rendered.png
             ~/.maestro/tests/**
           if-no-files-found: warn
