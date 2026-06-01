@@ -423,12 +423,22 @@ async function initializeDatabase() {
     `)
 
     // Create senders table
+    // NOTE: list_id + the discovery columns (description/category/subscriber_count/
+    // featured) are REQUIRED by findOrCreateSender and the /api/newsletters &
+    // /discover endpoints. They were historically missing from this CREATE TABLE,
+    // which broke subscription import and discovery on existing databases. A
+    // migration below (ADD COLUMN IF NOT EXISTS) repairs older databases.
     await pool.query(`
       CREATE TABLE IF NOT EXISTS senders (
         id SERIAL PRIMARY KEY,
         email TEXT NOT NULL,
         name TEXT,
         picture TEXT,
+        list_id TEXT,
+        description TEXT,
+        category TEXT,
+        subscriber_count INTEGER DEFAULT 0,
+        featured BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -503,6 +513,23 @@ async function initializeDatabase() {
       }
     } catch (migrationError) {
       console.error('[MIGRATION] Error during database migration:', migrationError);
+    }
+
+    // Database migration: the senders table gained list_id + discovery columns
+    // after the original schema shipped. Older databases are missing them, which
+    // makes findOrCreateSender (subscription import) and /api/newsletters throw
+    // "column does not exist". ADD COLUMN IF NOT EXISTS is a no-op on fresh DBs.
+    try {
+      await pool.query(`ALTER TABLE senders ADD COLUMN IF NOT EXISTS list_id TEXT`);
+      await pool.query(`ALTER TABLE senders ADD COLUMN IF NOT EXISTS description TEXT`);
+      await pool.query(`ALTER TABLE senders ADD COLUMN IF NOT EXISTS category TEXT`);
+      await pool.query(`ALTER TABLE senders ADD COLUMN IF NOT EXISTS subscriber_count INTEGER DEFAULT 0`);
+      await pool.query(`ALTER TABLE senders ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT false`);
+      // Required by the ON CONFLICT (email, list_id) in seedDiscoverableNewsletters.
+      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_senders_email_list_id ON senders(email, list_id)`);
+      console.log('[MIGRATION] senders columns ensured (list_id, description, category, subscriber_count, featured)');
+    } catch (sendersMigrationError) {
+      console.error('[MIGRATION] Error ensuring senders columns:', sendersMigrationError);
     }
 
     // Create indexes for better performance
@@ -1056,7 +1083,7 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.NODE_ENV === 'production'
-    ? process.env.PRODUCTION_REDIRECT_URI || 'https://the-postbox-production.up.railway.app/oauth2callback'
+    ? process.env.PRODUCTION_REDIRECT_URI || 'https://the-postbox-backend.fly.dev/oauth2callback'
     : 'http://localhost:3000/oauth2callback'
 )
 
@@ -1122,7 +1149,10 @@ app.get('/oauth2callback', async (req, res) => {
       { expiresIn: '7d' }
     )
 
-    const redirectUrl = `newsletterreader://auth?token=${jwtToken}`
+    // Use the app's real URL scheme (see mobile app.config.js: postbox / postbox-dev).
+    // NOTE: this server-side web-OAuth callback is legacy — the mobile app signs in
+    // via PKCE through POST /login, not this redirect. Kept correct for completeness.
+    const redirectUrl = `postbox://auth?token=${jwtToken}`
     res.redirect(redirectUrl)
   } catch (error) {
     console.error('OAuth callback error:', error)
@@ -1524,27 +1554,33 @@ app.get('/api/notification-settings', authenticateToken, async (req, res) => {
   }
 });
 
-// Notification settings endpoint
+// Notification settings endpoint (alias of /api/notification-settings).
+// NOTE: this previously selected columns that don't exist on the users table
+// (email_notifications, digest_frequency, quiet_hours_*) and 500'd at runtime —
+// and the mobile app calls THIS route. Now mirrors the /api variant exactly so
+// both return the same shape using the real `push_notifications_enabled` column.
 app.get('/notification-settings', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
-    
-    const result = await pool.query(`
-      SELECT 
-        email_notifications,
-        push_notifications,
-        digest_frequency,
-        quiet_hours_start,
-        quiet_hours_end
-      FROM users 
-      WHERE id = $1
-    `, [userId]);
-    
+
+    const result = await pool.query(
+      'SELECT push_notifications_enabled FROM users WHERE id = $1',
+      [userId]
+    );
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    res.json(result.rows[0]);
+
+    const user = result.rows[0];
+    res.json({
+      pushNotifications: user.push_notifications_enabled,
+      notificationSound: true, // Default (not yet persisted server-side)
+      notificationFrequency: 'immediate', // Default
+      quietHoursEnabled: false, // Default
+      quietHoursStart: '22:00', // Default
+      quietHoursEnd: '08:00' // Default
+    });
   } catch (error) {
     console.error('Error fetching notification settings:', error);
     res.status(500).json({ error: 'Failed to fetch notification settings' });

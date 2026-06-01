@@ -408,18 +408,19 @@ These are directional only; nothing here is implemented or designed yet.
 
 ## 14. Known Gaps, Tech Debt & Doc Discrepancies
 
-| # | Issue | Reality | Reference |
+Status legend: ✅ fixed · ⚠️ open · 📋 roadmapped
+
+| # | Issue | Reality / Resolution | Status |
 |---|-------|---------|-----------|
-| 1 | **Pub/Sub "real-time" pipeline** claimed in docs | Does **not** exist. `@google-cloud/pubsub` imported but never used; ingestion is poll-based. | README L7/41/47; ROADMAP L35; CLAUDE L39–49/206/373–374; code line 22 |
-| 2 | **`GET /notification-settings`** selects non-existent columns | Selects `email_notifications`, `push_notifications`, `digest_frequency`, `quiet_hours_start`, `quiet_hours_end` — none exist (only `push_notifications_enabled`) → **throws / 500 at runtime**. The `GET /api/notification-settings` variant is correct. **This is actively hit, not latent**: the mobile app calls the broken route (`mobile/src/api/client.ts:349`). | line ~1528 (bad) vs line ~1499 (correct) |
-| 3 | **`senders.list_id` schema drift** | Used by `findOrCreateSender`/seed/queries (effective identity `(email, list_id)`) but **absent from the `CREATE TABLE`**. | `findOrCreateSender` ~line 2063 vs `senders` DDL ~line 427 |
-| 4 | **Stale Railway redirect URI** | Backend default prod redirect is `https://the-postbox-production.up.railway.app/oauth2callback` — but deployment is **Fly.io**. Dead reference. | line ~1059 |
-| 5 | **`/oauth2callback` redirects to dead scheme** | Redirects to `newsletterreader://`, which doesn't match the app's `postbox` / `postbox-dev` schemes. Legacy/dead path. | line ~1125 |
-| 6 | **Push-via-Firebase** claimed in docs | Expo Push is live; `admin.messaging()` branch is dead; `firebase-admin` vestigial. | README L299; CLAUDE L39; ROADMAP L87; code ~line 2180 |
-| 7 | **`devices.fcm_token` misnomer** | Column named `fcm_token` but actually stores Expo `ExponentPushToken[...]`. | `devices` DDL ~line 465 |
-| 8 | **"Queue push job"** claimed in ROADMAP | No queue — push send is synchronous/inline in `saveMessage`. | ROADMAP L88; code ~line 2265/2291 |
-| 9 | **CLAUDE "Pub/Sub ping privacy"** note | Moot — no Pub/Sub exists. | CLAUDE L374 |
-| 10 | **No E2E push verification** | The end-to-end push path has not been verified in a real device test. | — |
+| 1 | **Pub/Sub "real-time" pipeline** claimed in docs | Does **not** exist. `@google-cloud/pubsub` imported but never used; ingestion is poll-based (client pull-to-refresh). Now correctly documented (§7) and a real ingestion pipeline is planned in `IMPLEMENTATION_ROADMAP.md` §6️⃣b. | 📋 roadmapped |
+| 2 | **`senders` table missing columns** → import + discovery broken | `findOrCreateSender` and `/api/newsletters` use `list_id`, `description`, `category`, `subscriber_count`, `featured`, none of which were in the `CREATE TABLE`. On the live DB this made `/api/newsletters` 500 and **silently broke subscription import**. **Fixed (2026-06):** columns added to `CREATE TABLE` + an `ADD COLUMN IF NOT EXISTS` migration repairs existing DBs + unique index on `(email, list_id)`. Takes effect on backend redeploy. | ✅ fixed |
+| 3 | **`GET /notification-settings`** selected non-existent columns → 500 | The mobile app (`client.ts:349`) calls this route; it queried `digest_frequency`/`quiet_hours_*` which don't exist → 500. **Fixed (2026-06):** route now mirrors `/api/notification-settings` (uses `push_notifications_enabled`). | ✅ fixed |
+| 4 | **Stale Railway redirect URI** | Backend default prod redirect was `…up.railway.app/oauth2callback`. **Fixed (2026-06):** now `https://the-postbox-backend.fly.dev/oauth2callback`. (Legacy web-OAuth path; mobile uses PKCE `/login`.) | ✅ fixed |
+| 5 | **`/oauth2callback` redirected to dead scheme** | Redirected to `newsletterreader://`. **Fixed (2026-06):** now `postbox://` (the app's real scheme). Legacy path. | ✅ fixed |
+| 6 | **Push-via-Firebase** claimed in docs | Expo Push is live; `admin.messaging()` branch is dead; `firebase-admin` vestigial. Correctly documented (§8); removal roadmapped (ROADMAP §6.5). | 📋 roadmapped |
+| 7 | **`devices.fcm_token` misnomer** | Column named `fcm_token` but stores Expo `ExponentPushToken[...]`. Rename deferred (low priority; would need a migration + query updates). | ⚠️ open |
+| 8 | **No job queue / push only on client refresh** | `sendNotificationForNewMessage` is inline in `saveMessage`, and only runs during a client-triggered backfill. Addressed by ingestion redesign (ROADMAP §6️⃣b / §6.3). | 📋 roadmapped |
+| 9 | **No E2E push verification** | The end-to-end push path has not been verified in a real device test. | ⚠️ open |
 
 ---
 

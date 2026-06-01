@@ -4,7 +4,9 @@ This project is a mobile application designed to provide a clean, focused readin
 
 ## Technology Stack & Strategy
 
-- **Backend:** Node.js with Express, connecting to a PostgreSQL database. It uses the Gmail API and Pub/Sub for real-time email processing.
+- **Backend:** Node.js with Express, connecting to a PostgreSQL database. It uses the Gmail API to fetch newsletters. _(Note: ingestion is currently client-triggered polling via pull-to-refresh, NOT real-time Pub/Sub — a real-time pipeline is planned. See [`ARCHITECTURE.md`](ARCHITECTURE.md) §7 and `IMPLEMENTATION_ROADMAP.md` §6️⃣b.)_
+
+> 📐 **For the authoritative system design, data model, and flows, see [`ARCHITECTURE.md`](ARCHITECTURE.md)** — it is generated from the actual code. This README is the project log / setup guide.
 - **Backend Testing:** The backend API is tested using Jest and Supertest to ensure all endpoints are reliable and secure.
 - **Mobile App:** Built with React Native + Expo (CNG / managed prebuild — EAS regenerates the native `ios/`/`android/` projects from `mobile/app.config.js` on the build server). _Note: this was a bare workflow until 2026-05-30; it was migrated to CNG because the bare setup skipped prebuild and the config plugins never ran, which caused a standalone black screen. See the session log below._
 - **Development Strategy:** The project follows an **iOS-first** development strategy. Builds for the iOS platform are created using **Expo Application Services (EAS) Build**, which allows for building and deploying to physical devices from a non-macOS development environment.
@@ -295,8 +297,8 @@ To keep users informed about new newsletter issues, a complete push notification
 1.  **Client Registration**: Upon login, the mobile app requests permission from the user to send notifications.
 2.  **Token Generation**: If permission is granted, the app uses `expo-notifications` to request a unique Expo Push Token from Apple (APNs) or Google (FCM).
 3.  **Backend Storage**: This token is sent to the backend via a `POST /devices` request and stored securely, associated with the user.
-4.  **Trigger Event**: When the backend Gmail synchronization job processes a new email and identifies it as a subscribed newsletter, it triggers a push notification event.
-5.  **Message Delivery**: The backend uses the Firebase Admin SDK to send a notification to the user's registered devices via the stored token.
+4.  **Trigger Event**: When a backfill (currently triggered by the user's pull-to-refresh) saves a genuinely new newsletter, it triggers a push notification event. _(There is no background "sync job" yet — see ARCHITECTURE.md §7/§8.)_
+5.  **Message Delivery**: The backend sends the notification via the **Expo Push Service** (`expo-server-sdk`), which relays to APNs. _(A `firebase-admin` send path exists in code but is dead/unused for current Expo tokens.)_
 6.  **Client Handling**: The mobile app receives the notification. If the app is in the foreground, it displays an alert. If in the background, the OS handles the display.
 
 This architecture ensures a decoupled and robust system. The mobile client is only responsible for registering itself and handling the final payload, while the backend manages the complex logic of when and what to send. We use Expo's notification services to abstract away the complexities of dealing directly with APNs and FCM.

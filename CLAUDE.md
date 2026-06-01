@@ -14,6 +14,11 @@ Claude Code context file. Keep this up to date after every session.
 
 ## Architecture
 
+> 📐 **Canonical system reference: [`ARCHITECTURE.md`](ARCHITECTURE.md).** It is
+> built from the actual code and is the source of truth for system design, data
+> model, auth/push/ingestion flows, and known gaps. The summary below is a quick
+> orientation only — if it disagrees with `ARCHITECTURE.md`, trust that file.
+
 Monorepo with two independently deployable pieces:
 
 ```
@@ -36,18 +41,23 @@ Mobile App (React Native)
   │
   │── All subsequent API calls use JWT ──▶ Backend ──▶ PostgreSQL
   │
-  └── Push notifications ◀── Firebase/APNs ◀── Backend (on new email)
-                                                   ▲
-                                            Gmail Pub/Sub (real-time ping)
+  └── Push notifications ◀── Expo Push Service ◀── Backend (during backfill)
 ```
 
-### Real-time email flow
+### Email ingestion flow (REALITY — not real-time)
 
-1. User connects Gmail → backend calls Gmail Watch API
-2. New email arrives → Gmail pings backend via Google Cloud Pub/Sub
-3. Backend fetches only the sender metadata
-4. If sender is in user's subscription list → fetch full email, save to DB, push notification
-5. Otherwise → ignore (privacy-first)
+⚠️ There is **no real-time Gmail→Pub/Sub pipeline** (it was documented but never
+built — `@google-cloud/pubsub` is imported and unused; no `gmail.users.watch()`).
+Ingestion is **client-triggered polling**:
+
+1. On first login, the backend runs an initial sender scan over recent Gmail messages to discover newsletter senders.
+2. The user **pulls-to-refresh** → mobile calls `POST /api/backfill` → backend runs a Gmail search over the user's active senders, fetches matching messages, saves them, and (only here) fires a push for genuinely new ones.
+3. Nothing arrives — and no push fires — until the user manually refreshes.
+
+A real ingestion pipeline (Gmail Pub/Sub *or* a scheduled server-side poll) is
+planned — see `IMPLEMENTATION_ROADMAP.md` §6️⃣b. Push is delivered via the
+**Expo Push Service** (`expo-server-sdk`), not Firebase; the `firebase-admin`
+path is dead code (see `ARCHITECTURE.md` §8).
 
 ---
 
@@ -64,8 +74,8 @@ Mobile App (React Native)
 | Backend runtime | Node.js ≥18 |
 | Backend framework | Express 5 |
 | Database | PostgreSQL 15 |
-| Email integration | Gmail API via `googleapis` + Google Cloud Pub/Sub |
-| Push notifications | Firebase Admin SDK → APNs/FCM |
+| Email integration | Gmail API via `googleapis` (poll/backfill; **no** Pub/Sub) |
+| Push notifications | **Expo Push Service** (`expo-server-sdk`) → APNs. `firebase-admin` present but vestigial/dead path |
 | Auth | Google OAuth2 + PKCE → custom JWT |
 | Backend hosting | Fly.io (migrating from Railway — see checklist) |
 | Testing (backend) | Jest + Supertest |
@@ -203,12 +213,12 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 |---|---|
 | Google Sign-In (OAuth2 + PKCE) | ✅ |
 | JWT auth + auto-refresh | ✅ |
-| Gmail Pub/Sub real-time pipeline | ✅ |
+| Gmail real-time pipeline (Pub/Sub) | ❌ not built — ingestion is client-triggered backfill (ROADMAP §6️⃣b) |
 | Inbox screen (SectionList, pull-to-refresh) | ✅ |
 | Detail screen (WebView, HTML rendering) | ✅ |
 | Dark/light/sepia themes with CSS injection | ✅ |
 | Offline caching (gzip-compressed HTML) | ✅ |
-| Push notifications (Firebase + APNs) | ✅ |
+| Push notifications (Expo Push; fires only during backfill) | ⚠️ partial |
 | Sender subscription management | ✅ |
 | Settings screen | ✅ |
 | Login screen with animations + haptics | ✅ |
@@ -370,5 +380,6 @@ Because a committed `ios/` folder was uploaded, EAS **skipped prebuild**, so eve
 
 ### Git / Repository
 19. **`mobile/` was a submodule with no remote:** Converted to a regular directory in the root repo. All mobile code now lives in one repo, one push covers everything.
-20. **Backend is one file:** `backend/index-postgres.js` is intentionally monolithic (~99KB). All routes, auth, Pub/Sub, push logic lives there.
-21. **Pub/Sub ping privacy:** The Gmail Pub/Sub notification contains no email content — only a ping. The backend fetches sender metadata separately via Gmail API.
+20. **Backend is one file:** `backend/index-postgres.js` is intentionally monolithic (~99KB). All routes, auth, ingestion (backfill), and push logic live there.
+21. **No Pub/Sub:** despite older notes, there is no Gmail Pub/Sub / `watch()` pipeline. `@google-cloud/pubsub` is imported but unused. Newsletter ingestion is poll-based via client-triggered `/api/backfill`. Real-time ingestion is roadmapped (ROADMAP §6️⃣b). See `ARCHITECTURE.md` §7.
+22. **Push = Expo, not Firebase:** the app registers an Expo push token (`getExpoPushTokenAsync`) and the backend sends via `expo-server-sdk`. The `admin.messaging()` (Firebase) branch is dead code for current tokens; `firebase-admin` is vestigial and a removal candidate. See `ARCHITECTURE.md` §8.

@@ -81,12 +81,52 @@ _React Native_ is assumed.
 
 ## 6️⃣  Push Notification Pipeline
 
-| Step | Description | Tasks | Deliverable | Status |
-|------|-------------|-------|-------------|--------|
-| 6.1 | Firebase/APNs Setup | • Create Firebase project & iOS APNs key<br>• Configure server credentials | Credentials in secrets store | ✅ |
-| 6.2 | Backend Endpoint | • Store device tokens<br>• POST `/devices` to send FCM/APNs | Working push sender | ✅ |
-| 6.3 | Trigger Logic | • On message save → queue push job<br>• Batch multiple pushes if same sender | Worker sending push | ✅ |
-| 6.4 | Mobile Integration | • Request permission & send token<br>• Handle foreground/background notifications | Seamless notification UX | ✅ |
+> **Reality check (2026-06):** push is delivered via the **Expo Push Service**
+> (`getExpoPushTokenAsync` on the client → `expo-server-sdk` on the backend), NOT
+> Firebase. The `firebase-admin` send path exists but is dead code for current
+> tokens. There is **no job queue** — `sendNotificationForNewMessage` is called
+> inline from `saveMessage`. Critically, **push only fires during a
+> client-triggered backfill** (see §6️⃣b) — there is no server-side trigger when
+> mail actually arrives. See `ARCHITECTURE.md` §8.
+
+| Step | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 6.1 | Push transport (Expo Push Service) | ✅ | Expo relays to APNs; `aps-environment` entitlement added via `expo-notifications` plugin (CNG). |
+| 6.2 | Device token storage (`POST /devices`) | ✅ | Stored in `devices.fcm_token` (misnomer — holds Expo tokens). |
+| 6.3 | Trigger logic | ⚠️ partial | Inline call on new-message insert; **no queue, no batching, no retry**. Only runs during client-initiated backfill. |
+| 6.4 | Mobile integration (permission + token) | ✅ | Hardened in 2026-06 (try/catch around token fetch). |
+| 6.5 | Firebase removal decision | ☐ | `firebase-admin` is vestigial; remove to cut the unused FCM path + retire the SA secret (Expo Push also covers Android via FCM creds at the Expo layer). |
+
+---
+
+## 6️⃣b  Real-Time Newsletter Ingestion Pipeline  ⭐ NEW (priority)
+
+> **Problem:** there is currently **no real-time ingestion**. Newsletters are
+> only fetched when the user **pulls-to-refresh** (→ `/api/backfill` runs a Gmail
+> search over their active senders). The "Gmail → Pub/Sub → backend" real-time
+> pipeline described in older docs **was never built** (`@google-cloud/pubsub` is
+> imported but unused; no `gmail.users.watch()` exists). Consequence: new issues
+> don't arrive — and pushes don't fire — until the user manually refreshes. This
+> is the biggest gap between the product promise and reality.
+
+**Goal:** when a subscribed newsletter arrives in the user's Gmail, it lands in
+the app (and triggers a push) automatically, without user action.
+
+| Step | Description | Tasks | Status |
+|------|-------------|-------|--------|
+| 6b.1 | **Decide mechanism** | Choose between **(A) Gmail Push via Pub/Sub** (true real-time: `users.watch` + Cloud Pub/Sub topic → backend webhook → incremental `history.list`) vs **(B) Scheduled server-side poll** (a cron/worker that runs backfill per active user every N minutes — simpler, near-real-time, no GCP Pub/Sub infra). | ☐ |
+| 6b.2 | **Server-side trigger** | Move `backfill`/save logic out of the client request path into a backend-owned job so ingestion no longer depends on the app being open. | ☐ |
+| 6b.3 | **Gmail watch lifecycle** (if A) | `users.watch` per user, store `historyId`, renew watch before 7-day expiry, handle `historyId` gaps (fallback to backfill). | ☐ |
+| 6b.4 | **Pub/Sub consumer** (if A) | Verify-and-handle the Pub/Sub push webhook; the ping carries no content — fetch sender/message via Gmail API. Secure the endpoint (JWT/OIDC from Google). | ☐ |
+| 6b.5 | **Scheduler** (if B) | Fly.io scheduled machine / cron worker; respect Gmail API quota; stagger users; backoff. | ☐ |
+| 6b.6 | **Token reliability** | Fix the per-user Gmail refresh-token gap (PKCE often returns none → Gmail access silently expires). Without a stored Google refresh token, server-side ingestion can't run while the app is closed. **Prerequisite for either mechanism.** | ☐ |
+| 6b.7 | **Decouple push from backfill** | Once ingestion is server-driven, push fires from the server job, not from a client refresh. Add a lightweight queue + retry (ties into §6.3). | ☐ |
+
+**Recommended path:** start with **(B) scheduled poll** for a fast, infra-light
+win that already delivers near-real-time + background push, then graduate to
+**(A) Gmail Pub/Sub** if instant delivery and API-quota efficiency become
+necessary at scale. Both depend on **6b.6 (reliable Google refresh tokens)** —
+do that first.
 
 ---
 
