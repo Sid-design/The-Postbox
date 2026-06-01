@@ -45,7 +45,11 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
 
       - name: Install JS dependencies
-        run: npm ci
+        # Uses `npm install` rather than `npm ci` because package-lock.json is
+        # currently out of sync with package.json (missing @types/react-native
+        # and @react-native/virtualized-lists). Switch back to `npm ci` once the
+        # lockfile is regenerated.
+        run: npm install --no-audit --no-fund
 
       - name: Expo prebuild (iOS)
         run: npx expo prebuild --platform ios --clean --no-install
