@@ -95,7 +95,7 @@ _React Native_ is assumed.
 | 6.2 | Device token storage (`POST /devices`) | ✅ | Stored in `devices.fcm_token` (misnomer — holds Expo tokens). |
 | 6.3 | Trigger logic | ⚠️ partial | Inline call on new-message insert; **no queue, no batching, no retry**. Only runs during client-initiated backfill. |
 | 6.4 | Mobile integration (permission + token) | ✅ | Hardened in 2026-06 (try/catch around token fetch). |
-| 6.5 | Firebase removal decision | ☐ | `firebase-admin` is vestigial; remove to cut the unused FCM path + retire the SA secret (Expo Push also covers Android via FCM creds at the Expo layer). |
+| 6.5 | Firebase removal | ✅ | `firebase-admin` and `@google-cloud/pubsub` removed from backend (2026-06-01). `FIREBASE_SERVICE_ACCOUNT_KEY` Fly secret can now be unset. |
 
 ---
 

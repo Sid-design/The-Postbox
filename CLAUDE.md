@@ -205,6 +205,79 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 
 ---
 
+## Next Session Starting Point (2026-06-01)
+
+### Immediate actions
+1. **Verify subscription import works on device** — install Build 13 (`39a37fef`) if not already done; go to Senders tab → pull to refresh. Both the Sentry crash loop and the senders schema are now fixed.
+2. **Retire the Firebase Fly secret** (you must run this — credential operations are blocked for Claude): `flyctl secrets unset FIREBASE_SERVICE_ACCOUNT_KEY --app the-postbox-backend`
+3. **Resolve the `requestHandler` Sentry issue** in the dashboard at sid-design.sentry.io → the-postbox-backend. (Sentry API block prevented Claude from doing this.)
+4. **Merge `fix/app-issues-post-cng` → master** once subscription import is confirmed.
+
+### Main focus: iOS bug audit + UI QA
+The app has many functional and UI bugs that need systematic investigation. See the QA Strategy section below.
+
+---
+
+## iOS Bug Audit & QA Strategy
+
+### Why the device is hard to replace
+You can't run the iOS app on a simulator from this Windows machine. The EAS build cycle (~15 min per build) is too slow for iterative UI fixing. We need ways to **see and validate UI** changes without always building to device first.
+
+### What's available — 4 approaches in order of practicality
+
+#### 1. Expo Go / Dev Client over local network (fastest feedback loop)
+The dev build profile already exists. Metro bundles are served live over your LAN — changes appear in ~1 second on device without rebuilding. This is the correct tool for UI work.
+
+**Setup check:** `cd mobile && expo start` → your device with The Postbox (Dev) app opens the bundle. Make a change to a screen → it hot-reloads instantly.
+
+⚠️ Some native modules (push notifications) don't work in dev client, but all **UI rendering, navigation, and API calls** do. This covers 90% of what you need for the audit.
+
+#### 2. Unit tests with `@testing-library/react-native` (logic + render, no network)
+The project already has tests in `mobile/__tests__/`. These can verify that components render correctly, navigation fires, API calls are made, and state changes propagate — without any device. Run with `cd mobile && npx jest`.
+
+**Best for:** catching regressions, verifying fixes before building.
+
+#### 3. Maestro (E2E on-device flow testing) — worth adding
+[Maestro](https://maestro.mobile.dev/) is a free, simple YAML-based E2E test framework for React Native / Expo. It drives the actual app on a real device via USB and can verify full flows (login → scroll inbox → open newsletter → back). **No Mac/Xcode required for test authoring.** Tests run via `maestro test` from this machine with the device connected over USB.
+
+**Best for:** verifying entire user flows after builds — subscription import, inbox loading, navigation.
+
+#### 4. Storybook for isolated component review
+Expo + Storybook can render individual components in isolation on device (or in a web browser). You'd add `@storybook/react-native` + `storybook-addon-expo` once.
+
+**Best for:** design review of individual components without needing the full navigation stack running.
+
+### Recommended workflow for next session
+
+```
+For each bug:
+  1. Reproduce it in the dev client (Expo start → hot reload)
+  2. Fix the code
+  3. Verify fix in dev client (~1s feedback)
+  4. Write or update the jest test for that component
+  5. Only build to EAS when a set of fixes is ready for device-level verification
+```
+
+This turns a 15-min EAS cycle into a ~1s hot-reload loop for UI work.
+
+### Known bugs to audit (from the code review + Sentry)
+High priority (functional):
+- Pull-to-refresh: empty inbox even after subscription import fixed — need to verify end-to-end with the new build
+- `SavedScreen`: renders but may have issues (needs inspection)
+- `DetailScreen`: HTML newsletter rendering — images, layout, fonts in WebView
+- `ConnectedMailboxesScreen`: screen exists but its content has never been tested
+
+Medium priority (UI/UX):
+- Tab bar padding/safe-area on different iPhone sizes
+- Dark mode: `SenderManagementScreen` still uses hardcoded `colors.light.*` throughout its `StyleSheet` (not fixed yet — only the Settings screen got the theme alias fix)
+- Groups UI: group creation/management flow
+- Empty states: all screens need proper empty states
+
+Pre-App-Store cleanup:
+- `pullDownText` is no longer red ✅ (fixed Build 13)
+- Debug buttons hidden behind `__DEV__` ✅
+- Privacy/Terms URLs updated ✅ (pointing to GitHub MD for now — needs real hosted pages before App Store)
+
 ## Current Status (as of 2026-06-01)
 
 ### What's done
@@ -235,11 +308,15 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 | Area | Status | Notes |
 |---|---|---|
 | Backend migration: Railway → Fly.io | ✅ | Live at https://the-postbox-backend.fly.dev |
-| Backend Sentry v10 crash loop (login/API down) | ✅ | **FIXED (2026-06-01).** `@sentry/node` v10 removed `Sentry.Handlers`; old `requestHandler()` crashed on boot when `SENTRY_DSN` was set. Replaced with `setupExpressErrorHandler(app)`; redeployed. Symptom was failed login + empty inbox (API unreachable), not OAuth. |
-| Preview build (standalone, no Metro needed) | ✅ | **FIXED (Build 12 `8b16df25`, 2026-05-30). App renders on device — black screen gone.** Root cause was bare-but-managed mismatch (prebuild skipped → plugins never ran since Build 5); fixed by migrating to CNG/prebuild + UNTRACKING `ios/` + Sentry version downgrade. See root cause analysis below. Branch `fix/eas-preview-bare-ios` — ready to merge. |
-| iOS design audit & polish | ☐ | **NEXT.** App now launches on device but has functional/UI issues to triage (post-black-screen). |
-| TestFlight beta distribution | ☐ | After design polish |
-| CI/CD pipeline | ☐ | EAS + GitHub Actions (copy pattern from SafariTTS) |
+| Backend Sentry v10 crash loop (login/API down) | ✅ | Fixed 2026-06-01. See README Session 9. |
+| Preview build / black screen | ✅ | Fixed Build 12 `8b16df25`. CNG migration. |
+| App bugs (tab bar, ConnectedMailboxes, push entitlement, sender toggle, etc.) | ✅ | 8 fixes in Build 13 `39a37fef`. |
+| `senders` schema + subscription import broken | ✅ | Schema migration + backend redeployed 2026-06-01. |
+| `firebase-admin` / `@google-cloud/pubsub` removal | ✅ | Removed 2026-06-01, redeployed. |
+| iOS bug audit & UI QA | ⏳ | **NEXT SESSION.** Many functional/UI bugs remain — see QA strategy below. |
+| `FIREBASE_SERVICE_ACCOUNT_KEY` Fly secret cleanup | ☐ | Run: `flyctl secrets unset FIREBASE_SERVICE_ACCOUNT_KEY --app the-postbox-backend` |
+| Merge `fix/app-issues-post-cng` → master | ☐ | Branch is stable; merge when next build confirms subscription import. |
+| TestFlight | ☐ | After UI/bug pass. |
 
 ### Preview build — failure root cause & fix (2026-05-29)
 
@@ -343,7 +420,7 @@ Because a committed `ios/` folder was uploaded, EAS **skipped prebuild**, so eve
 10. **Fly.io secrets with credentials are blocked by Claude's classifier:** Commands like `flyctl secrets set JWT_SECRET=...` containing real credentials must be run manually in your own terminal, not through Claude.
 11. **Backend Dockerfile uses `npm install` not `npm ci`:** The backend has its own `package-lock.json` that gets out of sync with the root workspace installs. `npm ci` fails in Docker; `npm install` is the safe choice.
 12. **Backend loads `.env` from parent directory:** `require('dotenv').config({ path: '../.env' })`. On Fly.io the file doesn't exist — that's fine, it silently falls back to process.env (the Fly secrets). No code change needed.
-13. **Firebase falls back to file if env var missing:** If `FIREBASE_SERVICE_ACCOUNT_KEY` is not set, the backend tries to load `./serviceAccountKey.json`. On Fly.io the secret must be set as a compact JSON string.
+13. **`firebase-admin` has been removed (2026-06-01).** It was only used for a dead FCM send-path; all push goes through Expo Push Service (`expo-server-sdk`). The `FIREBASE_SERVICE_ACCOUNT_KEY` Fly secret is now also redundant and can be removed: `flyctl secrets unset FIREBASE_SERVICE_ACCOUNT_KEY --app the-postbox-backend`. `serviceAccountKey.json` can be deleted too.
 14. **If login or backfill suddenly fails for everyone, check Fly first.** `flyctl logs -a the-postbox-backend --no-tail` — a crash loop at startup (e.g. Sentry `requestHandler` on `@sentry/node` v10) shows `Main child exited normally with code: 1` and `machine has reached its max restart count`. The mobile app only sees connection/timeouts. `GET https://the-postbox-backend.fly.dev/health` should return `{"status":"OK","database":"connected"}`.
 
 ### Database

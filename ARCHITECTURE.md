@@ -311,14 +311,12 @@ Mobile obtains an Expo push token via `getExpoPushTokenAsync({ projectId: '28b83
 
 1. Find users subscribed to the message's sender who have `push_notifications_enabled`.
 2. Gather their device tokens.
-3. Per-token branch (~line 2180):
-   - If the token `startsWith('ExponentPushToken[')` → `expo.sendPushNotificationsAsync` (**LIVE** — this is the path every current token takes).
-   - Else → `admin.messaging().send` (**DEAD** — no client ever produces a raw FCM token, so this branch is never exercised).
-4. Logs a tally `Expo=x Firebase=y` (~line 2253).
+3. Per-token branch:
+   - If the token `startsWith('ExponentPushToken[')` → `expo.sendPushNotificationsAsync` (**the only path**).
+   - Else → returns an "unsupported token format" error (no clients produce raw FCM tokens).
+4. Logs a tally `Expo=x Errors=y`.
 
-### Firebase init (vestigial)
-
-Firebase is initialized at ~lines 121–140: it loads a service account from `FIREBASE_SERVICE_ACCOUNT_KEY` env or `./serviceAccountKey.json`, and calls `admin.initializeApp` only if a key is present and not running under test. Since only `admin.messaging()` is referenced and the FCM branch is unreachable, **`firebase-admin` can be considered vestigial** and is a candidate for removal.
+**`firebase-admin` and `@google-cloud/pubsub` removed 2026-06-01.** Both were dead code: `admin.messaging()` was never reachable; `PubSub` was imported and never used (the real-time pipeline was never built). The `FIREBASE_SERVICE_ACCOUNT_KEY` Fly secret can also be removed.
 
 > Push only fires as a side effect of a **client-triggered backfill/scan** that inserts a new message (see [§7](#7-newsletter-ingestion-pipeline)). There is no background delivery.
 
@@ -422,7 +420,7 @@ Status legend: ✅ fixed · ⚠️ open · 📋 roadmapped
 | 3 | **`GET /notification-settings`** selected non-existent columns → 500 | The mobile app (`client.ts:349`) calls this route; it queried `digest_frequency`/`quiet_hours_*` which don't exist → 500. **Fixed (2026-06):** route now mirrors `/api/notification-settings` (uses `push_notifications_enabled`). | ✅ fixed |
 | 4 | **Stale Railway redirect URI** | Backend default prod redirect was `…up.railway.app/oauth2callback`. **Fixed (2026-06):** now `https://the-postbox-backend.fly.dev/oauth2callback`. (Legacy web-OAuth path; mobile uses PKCE `/login`.) | ✅ fixed |
 | 5 | **`/oauth2callback` redirected to dead scheme** | Redirected to `newsletterreader://`. **Fixed (2026-06):** now `postbox://` (the app's real scheme). Legacy path. | ✅ fixed |
-| 6 | **Push-via-Firebase** claimed in docs | Expo Push is live; `admin.messaging()` branch is dead; `firebase-admin` vestigial. Correctly documented (§8); removal roadmapped (ROADMAP §6.5). | 📋 roadmapped |
+| 6 | **Push-via-Firebase** claimed in docs + vestigial `firebase-admin` | **Removed 2026-06-01.** `firebase-admin` and `@google-cloud/pubsub` uninstalled from backend; all dead-code paths cleaned up. `FIREBASE_SERVICE_ACCOUNT_KEY` Fly secret can also be removed. | ✅ fixed |
 | 7 | **`devices.fcm_token` misnomer** | Column named `fcm_token` but stores Expo `ExponentPushToken[...]`. Rename deferred (low priority; would need a migration + query updates). | ⚠️ open |
 | 8 | **No job queue / push only on client refresh** | `sendNotificationForNewMessage` is inline in `saveMessage`, and only runs during a client-triggered backfill. Addressed by ingestion redesign (ROADMAP §6️⃣b / §6.3). | 📋 roadmapped |
 | 9 | **No E2E push verification** | The end-to-end push path has not been verified in a real device test. | ⚠️ open |
