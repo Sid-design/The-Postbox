@@ -560,7 +560,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => Linking.openURL('https://github.com/Sid-design/The-Postbox/blob/master/PRIVACY_POLICY.md')}
+              onPress={() => Linking.openURL('https://sid-design.github.io/The-Postbox/privacy.html')}
             >
               <View style={styles.settingLeft}>
                 <Text style={[styles.settingTitle, { color: themeColors.text }]}>
@@ -600,7 +600,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => Linking.openURL('https://github.com/Sid-design/The-Postbox/blob/master/PRIVACY_POLICY.md')}
+              onPress={() => Linking.openURL('https://sid-design.github.io/The-Postbox/terms.html')}
             >
               <View style={styles.settingLeft}>
                 <Text style={[styles.settingTitle, { color: themeColors.text }]}>
