@@ -659,11 +659,6 @@ const authenticateToken = (req, res, next) => {
 }
 
 // --- EXPRESS APP SETUP ---
-// Sentry request handler must be the very first middleware to capture full context
-if (process.env.SENTRY_DSN) {
-  app.use(Sentry.Handlers.requestHandler())
-}
-
 app.use(compression({
   level: 6,
   threshold: 1024,
@@ -2066,9 +2061,9 @@ app.post('/login', async (req, res) => {
 });
 
 // --- ERROR HANDLING ---
-// Sentry error handler must come before any other error middleware
+// Sentry v8+: setupExpressErrorHandler replaces Handlers.requestHandler/errorHandler
 if (process.env.SENTRY_DSN) {
-  app.use(Sentry.Handlers.errorHandler())
+  Sentry.setupExpressErrorHandler(app)
 }
 
 app.use((error, req, res, next) => {

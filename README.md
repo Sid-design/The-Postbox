@@ -286,6 +286,32 @@ The project was **bare but authored as managed**. Because a committed `ios/` fol
 
 To migrate an Expo project from **bare → CNG** for EAS Build, adding `ios/` to `.easignore` is **not sufficient** — EAS decides bare-vs-managed by whether `ios/` is **git-tracked**. The native folder must be untracked (`git rm -r --cached mobile/ios`) and gitignored. With `ios/` still tracked, EAS logs _"Skipped running expo prebuild because the ios directory already exists"_ and produces a bare build with none of your `app.config.js` plugins applied — which is exactly what left the app blank for Builds 5–11.
 
+### Session 9: Backend Sentry Crash Loop (Login & API Down)
+
+**Date:** June 1, 2026
+
+**Goal:** Diagnose failed login after logout and Gmail fetch not working.
+
+#### Root cause
+
+Production on Fly.io was **crash-looping on startup**. `backend/package.json` uses `@sentry/node` **v10.x**, but `index-postgres.js` still called **`Sentry.Handlers.requestHandler()`** (removed in Sentry JS SDK v8+). With `SENTRY_DSN` set as a Fly secret, Node threw:
+
+`TypeError: Cannot read properties of undefined (reading 'requestHandler')`
+
+Machines hit **max restart count (10)** and stopped. The mobile app saw proxy/connection errors (`failed to connect to machine`, `instance refused connection`) — not a Google OAuth or `/login` logic failure.
+
+#### Fix
+
+1. Removed `Sentry.Handlers.requestHandler()` and `Handlers.errorHandler()`.
+2. Call **`Sentry.setupExpressErrorHandler(app)`** after all routes (Sentry v8+ Express pattern).
+3. Deployed to Fly (`fly deploy` from `backend/`).
+
+#### Outcome
+
+- Backend starts cleanly with Sentry enabled; `/health` returns `OK` + `database: connected`.
+- Login and `/api/backfill` reachable again (first request may be slow due to Fly scale-to-zero cold start).
+- Documented in `ARCHITECTURE.md` §4 (middleware) and §14 (#10).
+
 ---
 
 ## Push Notifications

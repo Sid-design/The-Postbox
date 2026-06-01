@@ -8,3 +8,4 @@ export const API_CONFIG = {
     extended: 60000,
   },
 };
+

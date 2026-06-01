@@ -1,6 +1,6 @@
 # The Postbox — System Architecture
 
-> **Reflects the codebase as of 2026-06 (branch `fix/app-issues-post-cng`). Verify against code before relying on specifics.**
+> **Reflects the codebase as of 2026-06-01 (includes backend Sentry v10 fix). Verify against code before relying on specifics.**
 
 The Postbox is an iOS newsletter-reader app. This document describes the real, as-built architecture — including the places where the implementation diverges from older docs (README / IMPLEMENTATION_ROADMAP / CLAUDE.md). It is written engineer-to-engineer and is intended to be the canonical reference for how the system actually works today.
 
@@ -141,11 +141,16 @@ The backend is a **single ~2952-line monolith**: `backend/index-postgres.js`. Th
 
 ### Middleware chain (in order)
 
-1. **Sentry request handler** — conditional (only if a Sentry DSN is configured).
-2. **`compression`** — gzip, level 6.
-3. **`express.json`** — JSON body parsing.
-4. **`logRequest`** — Pino-based; logs requests that are 4xx/5xx **or** slower than 1s.
-5. **`authenticateToken`** (line ~590) — on protected routes; verifies the application JWT with `JWT_SECRET` and sets `req.user` (`{ userId, email }`).
+**Startup:** `Sentry.init()` runs at module load when `SENTRY_DSN` is set (`@sentry/node` **v10+** — there is no `Sentry.Handlers` API).
+
+**Per request (top of stack):**
+
+1. **`compression`** — gzip, level 6.
+2. **`express.json`** — JSON body parsing.
+3. **`logRequest`** — Pino-based; logs requests that are 4xx/5xx **or** slower than 1s.
+4. **`authenticateToken`** (line ~590) — on protected routes; verifies the application JWT with `JWT_SECRET` and sets `req.user` (`{ userId, email }`).
+
+**After all routes:** `Sentry.setupExpressErrorHandler(app)` when `SENTRY_DSN` is set (replaces the removed `Handlers.requestHandler` / `Handlers.errorHandler`), then the generic Express error middleware.
 
 ### Routes grouped by domain
 
@@ -421,6 +426,7 @@ Status legend: ✅ fixed · ⚠️ open · 📋 roadmapped
 | 7 | **`devices.fcm_token` misnomer** | Column named `fcm_token` but stores Expo `ExponentPushToken[...]`. Rename deferred (low priority; would need a migration + query updates). | ⚠️ open |
 | 8 | **No job queue / push only on client refresh** | `sendNotificationForNewMessage` is inline in `saveMessage`, and only runs during a client-triggered backfill. Addressed by ingestion redesign (ROADMAP §6️⃣b / §6.3). | 📋 roadmapped |
 | 9 | **No E2E push verification** | The end-to-end push path has not been verified in a real device test. | ⚠️ open |
+| 10 | **Backend Sentry v10 API mismatch** crashed Fly on boot | `backend/package.json` uses `@sentry/node` **^10.x**, but production still called `Sentry.Handlers.requestHandler()` (removed in v8+). With `SENTRY_DSN` set, Node threw at `index-postgres.js` load → machines hit max restart count → **all API calls failed** (login, backfill, etc. looked like app/network errors). **Fixed (2026-06-01):** removed `Handlers.*`; call `Sentry.setupExpressErrorHandler(app)` after routes. Deployed to `the-postbox-backend`. | ✅ fixed |
 
 ---
 

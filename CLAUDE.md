@@ -205,7 +205,7 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 
 ---
 
-## Current Status (as of 2026-05-29)
+## Current Status (as of 2026-06-01)
 
 ### What's done
 
@@ -235,6 +235,7 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 | Area | Status | Notes |
 |---|---|---|
 | Backend migration: Railway → Fly.io | ✅ | Live at https://the-postbox-backend.fly.dev |
+| Backend Sentry v10 crash loop (login/API down) | ✅ | **FIXED (2026-06-01).** `@sentry/node` v10 removed `Sentry.Handlers`; old `requestHandler()` crashed on boot when `SENTRY_DSN` was set. Replaced with `setupExpressErrorHandler(app)`; redeployed. Symptom was failed login + empty inbox (API unreachable), not OAuth. |
 | Preview build (standalone, no Metro needed) | ✅ | **FIXED (Build 12 `8b16df25`, 2026-05-30). App renders on device — black screen gone.** Root cause was bare-but-managed mismatch (prebuild skipped → plugins never ran since Build 5); fixed by migrating to CNG/prebuild + UNTRACKING `ios/` + Sentry version downgrade. See root cause analysis below. Branch `fix/eas-preview-bare-ios` — ready to merge. |
 | iOS design audit & polish | ☐ | **NEXT.** App now launches on device but has functional/UI issues to triage (post-black-screen). |
 | TestFlight beta distribution | ☐ | After design polish |
@@ -343,6 +344,7 @@ Because a committed `ios/` folder was uploaded, EAS **skipped prebuild**, so eve
 11. **Backend Dockerfile uses `npm install` not `npm ci`:** The backend has its own `package-lock.json` that gets out of sync with the root workspace installs. `npm ci` fails in Docker; `npm install` is the safe choice.
 12. **Backend loads `.env` from parent directory:** `require('dotenv').config({ path: '../.env' })`. On Fly.io the file doesn't exist — that's fine, it silently falls back to process.env (the Fly secrets). No code change needed.
 13. **Firebase falls back to file if env var missing:** If `FIREBASE_SERVICE_ACCOUNT_KEY` is not set, the backend tries to load `./serviceAccountKey.json`. On Fly.io the secret must be set as a compact JSON string.
+14. **If login or backfill suddenly fails for everyone, check Fly first.** `flyctl logs -a the-postbox-backend --no-tail` — a crash loop at startup (e.g. Sentry `requestHandler` on `@sentry/node` v10) shows `Main child exited normally with code: 1` and `machine has reached its max restart count`. The mobile app only sees connection/timeouts. `GET https://the-postbox-backend.fly.dev/health` should return `{"status":"OK","database":"connected"}`.
 
 ### Database
 14. **Legacy `received_at` format:** Old DB rows stored epoch milliseconds; new rows store ISO strings. The `parseDate` utility in `InboxScreen.tsx` handles both.
@@ -376,7 +378,8 @@ Because a committed `ios/` folder was uploaded, EAS **skipped prebuild**, so eve
 23. **Sentry DSN is in `mobile/eas.json`** (preview + production profiles). If you rotate the DSN, update both profiles. The dev profile intentionally has no DSN (uses Metro error overlay instead).
 24. **Backend Sentry DSN must be a Fly.io secret:** `flyctl secrets set SENTRY_DSN="<dsn>" --app the-postbox-backend`. The DSN itself (`https://ddd761b473877c4f840cb143a3be1719@o4511480100880384.ingest.de.sentry.io/4511480141185104`) is safe to store in docs — it's a public client identifier, not a secret.
 25. **Sentry dashboard:** `sid-design.sentry.io` — two projects: `react-native` (mobile) and `the-postbox-backend` (Node.js/Express).
-26. **Backend structured logging uses Pino.** JSON output — readable in `flyctl logs`. Pipe through `npx pino-pretty` locally for human-readable output: `node index-postgres.js | npx pino-pretty`. Existing logging function signatures (logAuth, logError, etc.) are unchanged — only their implementations now use pino.
+26. **Backend `@sentry/node` v10+ — do NOT use `Sentry.Handlers`.** `backend/package.json` pins `@sentry/node` ^10.x. `Sentry.Handlers.requestHandler()` / `errorHandler()` were removed in v8; calling them crashes the process at load when `SENTRY_DSN` is set (Sentry issue: `Cannot read properties of undefined (reading 'requestHandler')`). Use `Sentry.init()` at the top of `index-postgres.js` and **`Sentry.setupExpressErrorHandler(app)` after all routes**, before the generic error middleware. Mobile uses a different SDK (`@sentry/react-native` ~6.14.0 for Expo 53) — version rules are not interchangeable.
+27. **Backend structured logging uses Pino.** JSON output — readable in `flyctl logs`. Pipe through `npx pino-pretty` locally for human-readable output: `node index-postgres.js | npx pino-pretty`. Existing logging function signatures (logAuth, logError, etc.) are unchanged — only their implementations now use pino.
 
 ### Git / Repository
 19. **`mobile/` was a submodule with no remote:** Converted to a regular directory in the root repo. All mobile code now lives in one repo, one push covers everything.
