@@ -1,0 +1,125 @@
+name: iOS Maestro UI Tests
+
+# Runs Maestro UI flows against The Postbox on the iOS Simulator, on a free
+# GitHub-hosted macOS runner (unlimited minutes because this repo is public).
+# Builds the Expo (CNG) app for the simulator, boots it, runs .maestro flows,
+# and uploads screenshots + the Maestro run report as artifacts.
+#
+# Trigger manually (Actions tab -> Run workflow) or on pushes that touch the
+# mobile app or this workflow.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/ios-maestro.yml'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/ios-maestro.yml'
+
+jobs:
+  ios-maestro:
+    # macos-15 ships Xcode 16.x (iOS 18 SDK). Required because expo-modules-core
+    # uses SwiftUI's .onGeometryChange, an iOS 18 API absent from Xcode 15.
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      # Clean ASCII name so the generated Xcode scheme has no spaces/parens.
+      EXPO_PUBLIC_APP_NAME: ThePostbox
+      EXPO_PUBLIC_APP_VARIANT: development
+      EXPO_PUBLIC_API_URL: https://the-postbox-backend.fly.dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install JS dependencies
+        # Uses `npm install` rather than `npm ci` because package-lock.json is
+        # currently out of sync with package.json (missing @types/react-native
+        # and @react-native/virtualized-lists). Switch back to `npm ci` once the
+        # lockfile is regenerated.
+        run: npm install --no-audit --no-fund
+
+      - name: Expo prebuild (iOS)
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods
+        # --no-install above skips both npm and pods; npm is already installed,
+        # so just run pods here. This generates the .xcworkspace that xcodebuild
+        # needs (without it, only the bare .xcodeproj exists).
+        working-directory: mobile/ios
+        run: pod install
+
+      - name: Discover Xcode scheme
+        id: scheme
+        working-directory: mobile/ios
+        run: |
+          SCHEME=$(xcodebuild -list -json | python3 -c "import sys, json; d = json.load(sys.stdin); print(d['project']['schemes'][0])")
+          echo "Using scheme: $SCHEME"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+
+      - name: Build app for simulator
+        working-directory: mobile/ios
+        run: |
+          set -o pipefail
+          WORKSPACE=$(ls -d *.xcworkspace)
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "${{ steps.scheme.outputs.scheme }}" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -derivedDataPath build \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Boot simulator and install app
+        working-directory: mobile/ios
+        run: |
+          # Pick the first available iPhone simulator (device names vary by
+          # Xcode version, so don't hardcode one).
+          UDID=$(xcrun simctl list devices available --json \
+            | python3 -c "import sys, json; d = json.load(sys.stdin); print(next(dev['udid'] for runtime in d['devices'].values() for dev in runtime if dev.get('isAvailable') and 'iPhone' in dev['name']))")
+          echo "Booting simulator $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID"
+          APP_PATH=$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          echo "Installing $APP_PATH"
+          xcrun simctl install "$UDID" "$APP_PATH"
+
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Run Maestro flows
+        # --debug-output collects screenshots + a view hierarchy per step into a
+        # known directory we can upload (takeScreenshot otherwise lands in CWD).
+        run: maestro test .maestro --format junit --output maestro-report.xml --debug-output maestro-debug
+
+      - name: Upload Maestro artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-results
+          path: |
+            mobile/maestro-report.xml
+            mobile/maestro-debug/**
+            mobile/login-rendered.png
+            ~/.maestro/tests/**
+          if-no-files-found: warn
