@@ -54,6 +54,13 @@ jobs:
       - name: Expo prebuild (iOS)
         run: npx expo prebuild --platform ios --clean --no-install
 
+      - name: Install CocoaPods
+        # --no-install above skips both npm and pods; npm is already installed,
+        # so just run pods here. This generates the .xcworkspace that xcodebuild
+        # needs (without it, only the bare .xcodeproj exists).
+        working-directory: mobile/ios
+        run: pod install
+
       - name: Discover Xcode scheme
         id: scheme
         working-directory: mobile/ios
