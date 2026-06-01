@@ -1,0 +1,100 @@
+name: iOS Maestro UI Tests
+
+# Runs Maestro UI flows against The Postbox on the iOS Simulator, on a free
+# GitHub-hosted macOS runner (unlimited minutes because this repo is public).
+# Builds the Expo (CNG) app for the simulator, boots it, runs .maestro flows,
+# and uploads screenshots + the Maestro run report as artifacts.
+#
+# Trigger manually (Actions tab -> Run workflow) or on pushes that touch the
+# mobile app or this workflow.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/ios-maestro.yml'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/ios-maestro.yml'
+
+jobs:
+  ios-maestro:
+    runs-on: macos-14
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      # Clean ASCII name so the generated Xcode scheme has no spaces/parens.
+      EXPO_PUBLIC_APP_NAME: ThePostbox
+      EXPO_PUBLIC_APP_VARIANT: development
+      EXPO_PUBLIC_API_URL: https://the-postbox-backend.fly.dev
+      # The simulator to boot. Pinned for reproducibility.
+      SIM_DEVICE: iPhone 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Expo prebuild (iOS)
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Discover Xcode scheme
+        id: scheme
+        working-directory: mobile/ios
+        run: |
+          SCHEME=$(xcodebuild -list -json | python3 -c "import sys, json; d = json.load(sys.stdin); print(d['project']['schemes'][0])")
+          echo "Using scheme: $SCHEME"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+
+      - name: Build app for simulator
+        working-directory: mobile/ios
+        run: |
+          set -o pipefail
+          WORKSPACE=$(ls -d *.xcworkspace)
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "${{ steps.scheme.outputs.scheme }}" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -derivedDataPath build \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Boot simulator and install app
+        working-directory: mobile/ios
+        run: |
+          xcrun simctl boot "$SIM_DEVICE" || true
+          xcrun simctl bootstatus "$SIM_DEVICE" || true
+          APP_PATH=$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          echo "Installing $APP_PATH"
+          xcrun simctl install booted "$APP_PATH"
+
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Run Maestro flows
+        run: maestro test .maestro --format junit --output maestro-report.xml
+
+      - name: Upload Maestro artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-results
+          path: |
+            mobile/maestro-report.xml
+            ~/.maestro/tests/**
+          if-no-files-found: warn
