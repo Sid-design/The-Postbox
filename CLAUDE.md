@@ -352,7 +352,17 @@ Because a committed `ios/` folder was uploaded, EAS **skipped prebuild**, so eve
     - **Get EAS logs without a Mac** via the GraphQL API (see below); a real-prebuild check is `✔ Finished prebuild` vs `Skipped running .expo prebuild.`.
 
 ### Crash Reporting (Sentry)
-22. **Sentry version MUST match Expo SDK (`~6.14.0` for SDK 53).** `@sentry/react-native@8.x` is incompatible with Expo 53 and was a red herring in the black-screen saga (session 3 downgraded 8.13.0 → 6.14.0). Run `npx expo install --check` after any Sentry bump. `Sentry.init()` only (NOT `Sentry.wrap()`); `initSentry()` runs at module-load (outside the ErrorBoundary) so it is wrapped in try/catch — keep it that way. See `mobile/src/services/sentry.ts`.
+22. **Sentry auth token is in `mobile/.env` as `SENTRY_AUTH_TOKEN`.** Use it to query events directly without needing the browser. Node snippet (works in any session):
+    ```js
+    // node --input-type=module
+    const TOKEN = process.env.SENTRY_AUTH_TOKEN; // or paste from mobile/.env
+    const get = async path => (await fetch(`https://sentry.io/api/0${path}`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json();
+    // List issues:  get("/projects/sid-design/react-native/issues/?limit=10&query=is:unresolved")
+    // Event detail: get(`/organizations/sid-design/issues/${id}/events/?limit=1&full=true`)
+    ```
+    Org: `sid-design` | Projects: `react-native` (mobile), `the-postbox-backend` (backend) | Dashboard: https://sid-design.sentry.io
+
+23. **Sentry version MUST match Expo SDK (`~6.14.0` for SDK 53).** `@sentry/react-native@8.x` is incompatible with Expo 53 and was a red herring in the black-screen saga (session 3 downgraded 8.13.0 → 6.14.0). Run `npx expo install --check` after any Sentry bump. `Sentry.init()` only (NOT `Sentry.wrap()`); `initSentry()` runs at module-load (outside the ErrorBoundary) so it is wrapped in try/catch — keep it that way. See `mobile/src/services/sentry.ts`.
 23. **Sentry DSN is in `mobile/eas.json`** (preview + production profiles). If you rotate the DSN, update both profiles. The dev profile intentionally has no DSN (uses Metro error overlay instead).
 24. **Backend Sentry DSN must be a Fly.io secret:** `flyctl secrets set SENTRY_DSN="<dsn>" --app the-postbox-backend`. The DSN itself (`https://ddd761b473877c4f840cb143a3be1719@o4511480100880384.ingest.de.sentry.io/4511480141185104`) is safe to store in docs — it's a public client identifier, not a secret.
 25. **Sentry dashboard:** `sid-design.sentry.io` — two projects: `react-native` (mobile) and `the-postbox-backend` (Node.js/Express).
