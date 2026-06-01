@@ -247,36 +247,50 @@ Expo + Storybook can render individual components in isolation on device (or in 
 
 **Best for:** design review of individual components without needing the full navigation stack running.
 
-### Recommended workflow for next session
+### Autonomous QA workflow (now built)
 
+**How to use in a session:**
+```bash
+cd mobile && npx jest __tests__/screens/ScreenQA.test.tsx --verbose
 ```
-For each bug:
-  1. Reproduce it in the dev client (Expo start → hot reload)
-  2. Fix the code
-  3. Verify fix in dev client (~1s feedback)
-  4. Write or update the jest test for that component
-  5. Only build to EAS when a set of fixes is ready for device-level verification
-```
+→ 35 tests across all 7 screens. A Claude session can:
+1. Run `npx jest` → parse PASS/FAIL output
+2. For each failure, identify the bug from the assertion message
+3. Report a list of bugs with severity → get your approval
+4. Fix approved bugs in code
+5. Re-run jest to confirm green
+6. Only EAS-build after a batch of jest-confirmed fixes
 
-This turns a 15-min EAS cycle into a ~1s hot-reload loop for UI work.
+**What the tests cover** (per screen):
+- Does it render without crashing?
+- Are key UI elements present (titles, buttons, list items)?
+- Do interactions update state (e.g. sender toggle)?
+- Do API mock responses render correctly?
+- Does empty state show correct text?
+- Do navigation calls fire on button press?
 
-### Known bugs to audit (from the code review + Sentry)
-High priority (functional):
-- Pull-to-refresh: empty inbox even after subscription import fixed — need to verify end-to-end with the new build
-- `SavedScreen`: renders but may have issues (needs inspection)
-- `DetailScreen`: HTML newsletter rendering — images, layout, fonts in WebView
-- `ConnectedMailboxesScreen`: screen exists but its content has never been tested
+**What they don't cover** (requires device + Build):
+- Pixel-perfect layout on specific iPhone sizes
+- Dark mode rendering
+- WebView HTML email rendering
+- Push notification end-to-end
+- Actual OAuth/Gmail flow
 
-Medium priority (UI/UX):
-- Tab bar padding/safe-area on different iPhone sizes
-- Dark mode: `SenderManagementScreen` still uses hardcoded `colors.light.*` throughout its `StyleSheet` (not fixed yet — only the Settings screen got the theme alias fix)
-- Groups UI: group creation/management flow
-- Empty states: all screens need proper empty states
+### Known bugs to audit next session (code review + Sentry + test gaps)
+Priority 1 — functional:
+- `SenderManagementScreen`: dark mode broken (hardcoded `colors.light.*` in StyleSheet)
+- `SavedScreen`: mark-as-read/unread, delete actions untested
+- `DetailScreen`: WebView HTML rendering, font-size controls, cache behaviour
+- `ConnectedMailboxesScreen`: content is unknown (screen was never tested before)
 
-Pre-App-Store cleanup:
-- `pullDownText` is no longer red ✅ (fixed Build 13)
-- Debug buttons hidden behind `__DEV__` ✅
-- Privacy/Terms URLs updated ✅ (pointing to GitHub MD for now — needs real hosted pages before App Store)
+Priority 2 — UI/UX:
+- Tab bar safe-area on different iPhone sizes (notch phones)
+- Groups UI: group creation, group filter, group persistence flow
+- Empty states: verify text and affordances on all screens
+
+Pre-App-Store:
+- Privacy/Terms links point to GitHub MD — needs real hosted pages
+- Support email is personal Gmail — needs a postbox@ address
 
 ## Current Status (as of 2026-06-01)
 
@@ -313,7 +327,7 @@ Pre-App-Store cleanup:
 | App bugs (tab bar, ConnectedMailboxes, push entitlement, sender toggle, etc.) | ✅ | 8 fixes in Build 13 `39a37fef`. |
 | `senders` schema + subscription import broken | ✅ | Schema migration + backend redeployed 2026-06-01. |
 | `firebase-admin` / `@google-cloud/pubsub` removal | ✅ | Removed 2026-06-01, redeployed. |
-| iOS bug audit & UI QA | ⏳ | **NEXT SESSION.** Many functional/UI bugs remain — see QA strategy below. |
+| iOS bug audit & UI QA | ⏳ | **NEXT SESSION.** QA infrastructure built (35/35 tests pass). See QA strategy below. |
 | `FIREBASE_SERVICE_ACCOUNT_KEY` Fly secret cleanup | ☐ | Run: `flyctl secrets unset FIREBASE_SERVICE_ACCOUNT_KEY --app the-postbox-backend` |
 | Merge `fix/app-issues-post-cng` → master | ☐ | Branch is stable; merge when next build confirms subscription import. |
 | TestFlight | ☐ | After UI/bug pass. |
