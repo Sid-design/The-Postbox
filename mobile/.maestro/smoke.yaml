@@ -1,16 +1,11 @@
-# Boot-and-render smoke test for The Postbox.
-#
-# Why this flow: the app opens on LoginScreen (Google OAuth). Maestro cannot
-# perform a real Google sign-in (web redirect + 2FA), so the deepest reliable
-# automated check today is "does the app launch and render the login screen?"
-# That is exactly the regression that bit us before (the CNG black screen), so
-# this guards real value. To test past login later, add a test-auth bypass that
-# injects a token in E2E builds, then extend this flow.
+# Boot smoke test. The CI build sets EXPO_PUBLIC_E2E=1, so AuthContext seeds a
+# stub session and the app launches straight into the main tab UI (bypassing
+# Google OAuth, which Maestro can't drive). A visible tab bar proves the app
+# booted and rendered — the regression that bit us before (CNG black screen).
 appId: io.thepostbox.app
 ---
 - launchApp:
     clearState: true
-- assertVisible: "The Postbox"
-- assertVisible: "Your newsletter companion"
-- assertVisible: "Sign in with Google"
-- takeScreenshot: login-rendered
+- assertVisible: "Mailbox"
+- assertVisible: "Settings"
+- takeScreenshot: app-booted
