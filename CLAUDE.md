@@ -207,90 +207,107 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 
 ## Next Session Starting Point (2026-06-01)
 
-### Immediate actions
-1. **Verify subscription import works on device** — install Build 13 (`39a37fef`) if not already done; go to Senders tab → pull to refresh. Both the Sentry crash loop and the senders schema are now fixed.
-2. **Retire the Firebase Fly secret** (you must run this — credential operations are blocked for Claude): `flyctl secrets unset FIREBASE_SERVICE_ACCOUNT_KEY --app the-postbox-backend`
-3. **Resolve the `requestHandler` Sentry issue** in the dashboard at sid-design.sentry.io → the-postbox-backend. (Sentry API block prevented Claude from doing this.)
-4. **Merge `fix/app-issues-post-cng` → master** once subscription import is confirmed.
+### Before the session — two things to do manually
+1. **Verify subscription import on device** — install Build 13 (`39a37fef`), go to Senders tab → pull to refresh. Both the Sentry crash loop and senders schema are fixed and deployed; this is just confirming end-to-end on device.
+2. **Merge `fix/app-issues-post-cng` → master** once confirmed working. All the session's work lives on that branch.
 
-### Main focus: iOS bug audit + UI QA
-The app has many functional and UI bugs that need systematic investigation. See the QA Strategy section below.
+### Session goal: set up `idevicescreenshot` + run the first visual QA pass
+
+The visual QA loop we're targeting:
+```
+Claude runs npx jest  →  fix logic bugs
+Claude takes iPhone screenshot  →  spot visual bugs  →  fix  →  hot-reload  →  screenshot again
+```
+
+**Step 1 — Install `libimobiledevice` on Windows (one-time)**
+
+This is the CLI toolkit that lets Windows talk to a connected iPhone. It includes `idevicescreenshot` which saves what's on screen as a PNG file that Claude can read.
+
+Option A — pre-built binaries (easiest):
+```
+winget install libimobiledevice
+```
+Or download from: https://github.com/libimobiledevice-win32/imobiledevice-net/releases
+
+Verify install: `idevicescreenshot --version`
+
+**Step 2 — Start the dev client session**
+```bash
+# In one terminal (backend, optional for UI work):
+cd backend && node index-postgres.js
+
+# In another terminal:
+cd mobile && npx expo start
+```
+Then open The Postbox (Dev) on your iPhone and connect to the Metro server.
+
+**Step 3 — Claude runs the autonomous QA loop**
+```bash
+# Take a screenshot of whatever is on the iPhone screen right now
+idevicescreenshot screen.png
+
+# Run the Jest QA suite
+cd mobile && npx jest __tests__/screens/ScreenQA.test.tsx --verbose
+```
+Claude reads `screen.png`, identifies layout/visual bugs, cross-references with Jest failures, fixes code, hot-reload fires in ~1s on device, takes another screenshot, verifies.
+
+### QA loop — what Claude handles autonomously
+| What | How |
+|---|---|
+| Crash / render bugs | `npx jest` — 35 tests |
+| Missing elements, wrong text | `npx jest` assertions |
+| Visual layout, dark mode, safe-area | `idevicescreenshot` + read PNG |
+| Interaction → visual result | Fix code → Expo hot-reload → screenshot |
+| Report | Bug list with severity + screenshots |
+| Fix approval | You say yes/no per bug batch |
+
+### What still needs you
+- Actual OAuth/Gmail sign-in flow (can't automate Google's consent screen)
+- Push notification delivery (needs APNS round-trip)
+- Confirming fixes feel right in-hand (subjective UX judgements)
 
 ---
 
 ## iOS Bug Audit & QA Strategy
 
-### Why the device is hard to replace
-You can't run the iOS app on a simulator from this Windows machine. The EAS build cycle (~15 min per build) is too slow for iterative UI fixing. We need ways to **see and validate UI** changes without always building to device first.
-
-### What's available — 4 approaches in order of practicality
-
-#### 1. Expo Go / Dev Client over local network (fastest feedback loop)
-The dev build profile already exists. Metro bundles are served live over your LAN — changes appear in ~1 second on device without rebuilding. This is the correct tool for UI work.
-
-**Setup check:** `cd mobile && expo start` → your device with The Postbox (Dev) app opens the bundle. Make a change to a screen → it hot-reloads instantly.
-
-⚠️ Some native modules (push notifications) don't work in dev client, but all **UI rendering, navigation, and API calls** do. This covers 90% of what you need for the audit.
-
-#### 2. Unit tests with `@testing-library/react-native` (logic + render, no network)
-The project already has tests in `mobile/__tests__/`. These can verify that components render correctly, navigation fires, API calls are made, and state changes propagate — without any device. Run with `cd mobile && npx jest`.
-
-**Best for:** catching regressions, verifying fixes before building.
-
-#### 3. Maestro (E2E on-device flow testing) — worth adding
-[Maestro](https://maestro.mobile.dev/) is a free, simple YAML-based E2E test framework for React Native / Expo. It drives the actual app on a real device via USB and can verify full flows (login → scroll inbox → open newsletter → back). **No Mac/Xcode required for test authoring.** Tests run via `maestro test` from this machine with the device connected over USB.
-
-**Best for:** verifying entire user flows after builds — subscription import, inbox loading, navigation.
-
-#### 4. Storybook for isolated component review
-Expo + Storybook can render individual components in isolation on device (or in a web browser). You'd add `@storybook/react-native` + `storybook-addon-expo` once.
-
-**Best for:** design review of individual components without needing the full navigation stack running.
-
-### Autonomous QA workflow (now built)
-
-**How to use in a session:**
+### Jest test suite (built, 35/35 passing)
 ```bash
 cd mobile && npx jest __tests__/screens/ScreenQA.test.tsx --verbose
 ```
-→ 35 tests across all 7 screens. A Claude session can:
-1. Run `npx jest` → parse PASS/FAIL output
-2. For each failure, identify the bug from the assertion message
-3. Report a list of bugs with severity → get your approval
-4. Fix approved bugs in code
-5. Re-run jest to confirm green
-6. Only EAS-build after a batch of jest-confirmed fixes
+Covers: render without crashing, key UI elements, interactions, empty states, navigation calls, unread badges, sender toggles. Run this first every session for the baseline.
 
-**What the tests cover** (per screen):
-- Does it render without crashing?
-- Are key UI elements present (titles, buttons, list items)?
-- Do interactions update state (e.g. sender toggle)?
-- Do API mock responses render correctly?
-- Does empty state show correct text?
-- Do navigation calls fire on button press?
+### Screenshot QA via `idevicescreenshot` (to set up next session)
+`libimobiledevice` → `idevicescreenshot screen.png` → Claude reads the PNG → visual inspection of the actual running app on device. Requires iPhone plugged in via USB + dev client running. After one-time setup, fully autonomous.
 
-**What they don't cover** (requires device + Build):
-- Pixel-perfect layout on specific iPhone sizes
-- Dark mode rendering
-- WebView HTML email rendering
-- Push notification end-to-end
-- Actual OAuth/Gmail flow
+### What the tests cover vs. what needs screenshots
 
-### Known bugs to audit next session (code review + Sentry + test gaps)
-Priority 1 — functional:
-- `SenderManagementScreen`: dark mode broken (hardcoded `colors.light.*` in StyleSheet)
-- `SavedScreen`: mark-as-read/unread, delete actions untested
-- `DetailScreen`: WebView HTML rendering, font-size controls, cache behaviour
-- `ConnectedMailboxesScreen`: content is unknown (screen was never tested before)
+| Concern | Jest covers? | Screenshot covers? |
+|---|---|---|
+| Screen renders without crash | ✅ | ✅ |
+| Correct text / elements present | ✅ | ✅ |
+| Interaction logic (toggle, press) | ✅ | via hot-reload |
+| Dark mode colours | ❌ | ✅ |
+| Safe-area / notch layout | ❌ | ✅ |
+| Tab bar on different screen sizes | ❌ | ✅ |
+| WebView HTML rendering | ❌ | ✅ |
+| OAuth / push / haptics | ❌ | manual only |
 
-Priority 2 — UI/UX:
-- Tab bar safe-area on different iPhone sizes (notch phones)
-- Groups UI: group creation, group filter, group persistence flow
-- Empty states: verify text and affordances on all screens
+### Known bugs to fix (priority order)
+**P1 — functional, fixable in Jest+code:**
+- `SenderManagementScreen`: dark mode broken — `StyleSheet` uses hardcoded `colors.light.*` throughout (same issue fixed in Settings this session)
+- `SavedScreen`: mark-as-read, delete swipe actions — behaviour not tested
+- `DetailScreen`: font-size preference not persisting, cache stats not surfaced to user
+- `ConnectedMailboxesScreen`: content unknown — read the file, audit it
 
-Pre-App-Store:
-- Privacy/Terms links point to GitHub MD — needs real hosted pages
-- Support email is personal Gmail — needs a postbox@ address
+**P2 — visual, need screenshots:**
+- Tab bar safe-area padding on notch/Dynamic Island iPhones
+- Groups UI: group creation flow, filter by group, group persistence
+- Dark mode on every screen (not just Settings)
+- Empty state affordances (text + CTA button on every screen)
+
+**P3 — pre-App-Store cleanup:**
+- Privacy/Terms links point to GitHub MD — need real hosted pages before submission
+- Support email is personal Gmail — needs a `support@thepostbox.io` or similar
 
 ## Current Status (as of 2026-06-01)
 

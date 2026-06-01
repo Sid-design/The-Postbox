@@ -1,6 +1,6 @@
 # The Postbox — System Architecture
 
-> **Reflects the codebase as of 2026-06-01 (includes backend Sentry v10 fix). Verify against code before relying on specifics.**
+> **Reflects the codebase as of 2026-06-01 (branch `fix/app-issues-post-cng`). Includes: Sentry v10 fix, senders schema migration, firebase-admin + pubsub removal, notification-settings fix. Verify against code before relying on specifics.**
 
 The Postbox is an iOS newsletter-reader app. This document describes the real, as-built architecture — including the places where the implementation diverges from older docs (README / IMPLEMENTATION_ROADMAP / CLAUDE.md). It is written engineer-to-engineer and is intended to be the canonical reference for how the system actually works today.
 

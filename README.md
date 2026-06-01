@@ -314,6 +314,44 @@ Machines hit **max restart count (10)** and stopped. The mobile app saw proxy/co
 
 ---
 
+### Session 10: Backend deep clean + QA infrastructure (June 1, 2026)
+
+#### What was done
+
+**Backend — all deployed to Fly.io:**
+- **`senders` schema fixed** — 5 missing columns (`list_id`, `description`, `category`, `subscriber_count`, `featured`) caused subscription import to silently fail and `/api/newsletters` to return 500. Fixed via `ADD COLUMN IF NOT EXISTS` migration + `CREATE UNIQUE INDEX` for the `(email, list_id)` dedup constraint. Subscription import now works.
+- **`GET /notification-settings` 500 fixed** — endpoint queried non-existent DB columns; the mobile app was actively calling this broken route. Now mirrors the correct `/api/notification-settings` variant.
+- **Stale Railway redirect URI fixed** → `the-postbox-backend.fly.dev`
+- **Dead `newsletterreader://` redirect fixed** → `postbox://`
+- **`firebase-admin` + `@google-cloud/pubsub` removed** — both were dead code (Firebase: only an unreachable FCM branch; PubSub: imported and never used). `FIREBASE_SERVICE_ACCOUNT_KEY` Fly secret also retired.
+
+**Architecture documentation:**
+- **`ARCHITECTURE.md` created** — canonical system reference, built from actual source code via a 4-agent investigate → write → verify → approve pipeline. Covers system design, data model, all flows, known gaps, Android readiness, scalability, and monetization considerations.
+- `IMPLEMENTATION_ROADMAP.md` — real-time ingestion roadmapped (§6️⃣b with two-path design: scheduled poll vs Gmail Pub/Sub), push section corrected to Expo reality, Firebase removal marked done.
+- `CLAUDE.md` + `README.md` — corrected all Pub/Sub and Firebase-push claims that were factually wrong; added QA strategy, next-session brief, and new diagnostic gotchas.
+
+**Sentry:**
+- Auth token stored in `mobile/.env` as `SENTRY_AUTH_TOKEN` for future autonomous use
+- All 3 open issues resolved (requestHandler crash, aps-environment, test crash)
+
+**QA infrastructure — Jest test suite:**
+- `mobile/__tests__/screens/ScreenQA.test.tsx` — 35 tests, **35/35 passing**, covering all 7 screens
+- Complete mock suite for expo-crypto, expo-notifications, expo-haptics, WebView, safe-area, reanimated, and all `@react-navigation/*` packages
+- Custom `__mocks__/@react-navigation/native.js` with ThemeContext + NavigationContext so screens render standalone without a device
+- Autonomous QA loop defined: `npx jest` → parse failures → report → approve → fix
+
+#### Next session plan
+
+1. **Install `libimobiledevice`** (one-time): `winget install libimobiledevice` — gives `idevicescreenshot` which captures a PNG of the iPhone screen from Windows over USB
+2. **Set up dev client session**: `npx expo start` on laptop + open The Postbox (Dev) on iPhone
+3. **Run visual QA loop**: Claude runs `npx jest` for logic bugs + `idevicescreenshot` for visual bugs, fixes code, Expo hot-reloads in ~1s, screenshots again to verify
+4. **Bug priority list**: dark mode on SenderManagementScreen, ConnectedMailboxesScreen audit, tab bar safe-area, Groups UI, empty states
+5. **Merge `fix/app-issues-post-cng` → master** after verifying subscription import on device
+
+---
+
+---
+
 ## Push Notifications
 
 To keep users informed about new newsletter issues, a complete push notification system has been implemented. The goal is to deliver timely, relevant alerts without being intrusive.
