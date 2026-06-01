@@ -19,10 +19,14 @@ Sentry.init({
 
 const express = require('express')
 const { google } = require('googleapis')
-const { PubSub } = require('@google-cloud/pubsub')
+// @google-cloud/pubsub removed 2026-06-01: the real-time ingestion pipeline
+// (gmail.users.watch → Pub/Sub → backend) was never built. Ingestion is
+// client-triggered via /api/backfill. See IMPLEMENTATION_ROADMAP.md §6️⃣b.
 const { Pool } = require('pg')
 const jwt = require('jsonwebtoken')
-const admin = require('firebase-admin')
+// firebase-admin removed 2026-06-01: it was only used for an unreachable FCM
+// send-path (all registered tokens are Expo tokens — ExponentPushToken[...]).
+// Push is handled entirely by expo-server-sdk. See ARCHITECTURE.md §8.
 const compression = require('compression')
 const { Expo } = require('expo-server-sdk')
 
@@ -115,34 +119,7 @@ function logPerformance(operation, duration, additionalData = null) {
   logger.info({ operation, durationMs: duration, additionalData }, `[PERF] ${operation}: ${duration}ms`)
 }
 
-// --- FIREBASE SETUP ---
-let serviceAccount
-
-if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY && process.env.FIREBASE_SERVICE_ACCOUNT_KEY !== 'placeholder-set-in-dashboard') {
-  // Use environment variable for production
-  try {
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)
-  } catch (error) {
-    console.log('Invalid Firebase service account key format, skipping Firebase initialization')
-    serviceAccount = null
-  }
-} else {
-  // Use local file for development
-  try {
-    serviceAccount = require('./serviceAccountKey.json')
-  } catch (error) {
-    console.log('Local Firebase service account key not found, skipping Firebase initialization')
-    serviceAccount = null
-  }
-}
-
-if (process.env.NODE_ENV !== 'test' && serviceAccount) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  })
-} else if (process.env.NODE_ENV !== 'test') {
-  console.log('Firebase service account not available, Firebase features will be disabled')
-}
+// Firebase setup removed — see comment above.
 
 const JWT_SECRET = process.env.JWT_SECRET
 const REFRESH_JWT_SECRET = process.env.REFRESH_JWT_SECRET
@@ -739,16 +716,7 @@ app.get('/health/detailed', async (req, res) => {
       };
     }
     
-    // Check Firebase (if configured)
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY && process.env.FIREBASE_SERVICE_ACCOUNT_KEY !== 'placeholder-set-in-dashboard') {
-      health.services.firebase = {
-        status: 'CONFIGURED'
-      };
-    } else {
-      health.services.firebase = {
-        status: 'NOT_CONFIGURED'
-      };
-    }
+    // Firebase removed — push handled by Expo Push Service (expo-server-sdk)
     
     res.json(health);
   } catch (error) {
@@ -951,7 +919,7 @@ app.get('/api/debug/notifications', authenticateToken, async (req, res) => {
       subscription: subscription?.rows[0] || null,
       devices: devices.rows.map(d => d.fcm_token ? d.fcm_token.substring(0, 20) + '...' : null),
       userSettings: userSettings.rows[0] || null,
-      firebaseConfigured: !!admin.messaging,
+      pushProvider: 'expo-server-sdk',
       databaseConnection: 'connected',
       schemaCheck: schemaCheck?.rows || null
     };
@@ -1034,34 +1002,9 @@ app.post('/api/test/notification', authenticateToken, async (req, res) => {
       });
 
     } else {
-      // Native FCM token
-      console.log(`[TEST_NOTIFICATION] Using Firebase for native token`);
-
-      if (!admin.messaging) {
-        console.log(`[TEST_NOTIFICATION] Firebase Admin not initialized`);
-        return res.status(500).json({ error: 'Firebase not configured' });
-      }
-
-      const message = {
-        notification: {
-          title: 'Test Notification',
-          body: 'This is a test push from The Postbox app.',
-        },
-        data: {
-          type: 'test',
-          timestamp: Date.now().toString(),
-        },
-        token: token,
-      };
-
-      const response = await admin.messaging().send(message);
-      console.log(`[TEST_NOTIFICATION] Firebase send success:`, response);
-
-      res.json({ 
-        success: true, 
-        messageId: response,
-        details: 'Test notification sent via Firebase.' 
-      });
+      // Non-Expo token — not supported (all current clients register Expo tokens)
+      console.log(`[TEST_NOTIFICATION] Unsupported token format: ${token.substring(0, 20)}...`);
+      return res.status(400).json({ error: 'Unsupported push token format. Only Expo push tokens are accepted.' });
     }
 
   } catch (error) {
@@ -2204,15 +2147,13 @@ async function sendNotificationForNewMessage(senderId, subject) {
     console.log(`[NOTIFICATION] Processing ${tokens.length} tokens`);
 
     const expo = new Expo();
-    let firebaseSuccess = 0;
     let expoSuccess = 0;
     let errors = [];
 
     for (const token of tokens) {
       try {
         if (token.startsWith('ExponentPushToken[')) {
-          // Expo dev token
-          console.log(`[NOTIFICATION] Using Expo SDK for token: ${token.substring(0, 20)}...`);
+          console.log(`[NOTIFICATION] Sending via Expo Push: ${token.substring(0, 20)}...`);
 
           if (!Expo.isExpoPushToken(token)) {
             errors.push({ token: token.substring(0, 20) + '...', error: 'Invalid Expo push token' });
@@ -2247,33 +2188,9 @@ async function sendNotificationForNewMessage(senderId, subject) {
           }
 
         } else {
-          // Native FCM token
-          console.log(`[NOTIFICATION] Using Firebase for token: ${token.substring(0, 20)}...`);
-
-          if (admin.messaging) {
-            const message = {
-              notification: {
-                title: 'New Newsletter',
-                body: `New message from ${sender.name}: ${subject.length > 100 ? subject.substring(0, 100) + '...' : subject}`,
-              },
-              data: {
-                senderId: senderId.toString(),
-                senderName: sender.name,
-                subject: subject,
-                type: 'new_message',
-              },
-              token: token,
-            };
-
-            const response = await admin.messaging().send(message);
-            if (response) {
-              firebaseSuccess++;
-            } else {
-              errors.push({ token: token.substring(0, 20) + '...', error: 'Firebase send failed' });
-            }
-          } else {
-            errors.push({ token: token.substring(0, 20) + '...', error: 'Firebase not available' });
-          }
+          // Non-Expo token — skip (no FCM support; all current clients use Expo tokens)
+          console.log(`[NOTIFICATION] Skipping unsupported token format: ${token.substring(0, 20)}...`);
+          errors.push({ token: token.substring(0, 20) + '...', error: 'Unsupported token format' });
         }
       } catch (error) {
         console.error(`[NOTIFICATION] Error sending to token ${token.substring(0, 20)}... :`, error);
@@ -2281,7 +2198,7 @@ async function sendNotificationForNewMessage(senderId, subject) {
       }
     }
 
-    console.log(`[NOTIFICATION] Notification send complete: Expo=${expoSuccess}, Firebase=${firebaseSuccess}, Errors=${errors.length}`);
+    console.log(`[NOTIFICATION] Notification send complete: Expo=${expoSuccess}, Errors=${errors.length}`);
     if (errors.length > 0) {
       console.log(`[NOTIFICATION] Errors:`, errors);
     }
