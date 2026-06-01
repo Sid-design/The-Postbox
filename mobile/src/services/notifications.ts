@@ -37,12 +37,21 @@ export async function registerForPushNotificationsAsync() {
       return;
     }
     // Learn more about projectId from https://docs.expo.dev/guides/push-notifications/#minimum-requirements
-    token = (
-      await Notifications.getExpoPushTokenAsync({
-        projectId: '28b83ffb-dfc8-40e9-955a-b011fe8d8aee', // Expo project ID from app.json
-      })
-    ).data;
-    console.log(token);
+    // Wrapped in try/catch: on builds without a valid APNs entitlement/key this
+    // throws "no valid aps-environment entitlement". Push is non-essential to
+    // app function, so swallow the error rather than let it become an unhandled
+    // promise rejection (which Sentry was logging post-CNG-migration).
+    try {
+      token = (
+        await Notifications.getExpoPushTokenAsync({
+          projectId: '28b83ffb-dfc8-40e9-955a-b011fe8d8aee', // Expo project ID from app.json
+        })
+      ).data;
+      console.log(token);
+    } catch (error) {
+      console.warn('[NOTIFICATIONS] Could not get push token (push disabled):', error instanceof Error ? error.message : error);
+      return;
+    }
   } else {
     Alert.alert('Must use physical device for Push Notifications');
   }

@@ -288,7 +288,10 @@ export const syncNotificationSettings = async (settings: {
 }): Promise<void> => {
   try {
     console.log('[API] Syncing notification settings...');
-    await apiClient.post('/notification-settings/sync', settings);
+    const token = await getAuthToken();
+    await apiClient.post('/notification-settings/sync', settings, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
     console.log('[API] Notification settings synced successfully');
   } catch (error) {
     console.error('[API] Error syncing notification settings:', error);
@@ -342,7 +345,10 @@ export const getNotificationSettings = async (): Promise<{
 }> => {
   try {
     console.log('[API] Fetching notification settings...');
-    const response = await apiClient.get('/notification-settings');
+    const token = await getAuthToken();
+    const response = await apiClient.get('/notification-settings', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
     console.log('[API] Notification settings fetched successfully');
     return response.data;
   } catch (error) {

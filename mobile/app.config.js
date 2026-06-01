@@ -70,6 +70,15 @@ export default {
           },
         },
       ],
+      // Required: generates the iOS `aps-environment` entitlement. Without it,
+      // registerForPushNotificationsAsync() throws
+      // "no valid aps-environment entitlement string found for application"
+      // (caught in Sentry after the CNG migration dropped this plugin).
+      'expo-notifications',
+      // Provides the native config for secure token storage (used by
+      // AuthContext at launch) and on-demand fonts.
+      'expo-secure-store',
+      'expo-font',
     ],
     extra: {
       eas: {

@@ -48,6 +48,11 @@ type ImageLoadingMode = 'always' | 'wifi_only' | 'never';
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   const { colors } = useTheme();
+  // Alias the LIVE navigation theme over the module-level (light-only)
+  // `themeColors` constant for everything rendered here, so the screen follows
+  // light/dark mode. (The StyleSheet below still uses the static constant for
+  // structural defaults; key surfaces are overridden inline with these.)
+  const themeColors = colors;
   const { logout, authToken } = useAuth();
 
   // Settings state
@@ -335,8 +340,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 
   const renderSection = (title: string, children: React.ReactNode) => (
     <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
-      <View style={styles.sectionContent}>
+      <Text style={[styles.sectionTitle, { color: themeColors.text }]}>{title}</Text>
+      <View style={[styles.sectionContent, { backgroundColor: themeColors.card }]}>
         {children}
       </View>
     </View>
@@ -555,7 +560,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => Linking.openURL('https://newsletterreader.com/privacy')}
+              onPress={() => Linking.openURL('https://github.com/Sid-design/The-Postbox/blob/master/PRIVACY_POLICY.md')}
             >
               <View style={styles.settingLeft}>
                 <Text style={[styles.settingTitle, { color: themeColors.text }]}>
@@ -580,7 +585,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => Linking.openURL('mailto:support@newsletterreader.com')}
+              onPress={() => Linking.openURL('mailto:siddharth.daswani7@gmail.com?subject=The%20Postbox%20Support')}
             >
               <View style={styles.settingLeft}>
                 <Text style={[styles.settingTitle, { color: themeColors.text }]}>
@@ -595,7 +600,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => Linking.openURL('https://newsletterreader.com/terms')}
+              onPress={() => Linking.openURL('https://github.com/Sid-design/The-Postbox/blob/master/PRIVACY_POLICY.md')}
             >
               <View style={styles.settingLeft}>
                 <Text style={[styles.settingTitle, { color: themeColors.text }]}>
@@ -627,35 +632,38 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
               () => Alert.alert('Import', 'Import functionality coming soon')
             )}
 
-            {renderSettingItem(
+            {/* Dev/test-only tools — hidden in production builds */}
+            {__DEV__ && renderSettingItem(
               'Add Test Sender',
               'Add test sender for notification testing',
               <Ionicons name="chevron-forward" size={16} color={colors.text} style={{ marginLeft: 8 }} />,
               handleAddTestSender
             )}
 
-            {renderSettingItem(
+            {__DEV__ && renderSettingItem(
               'Debug Notifications',
               'Check notification setup status',
               <Ionicons name="chevron-forward" size={16} color={colors.text} style={{ marginLeft: 8 }} />,
               handleDebugNotifications
             )}
 
-            {/* New Test Notification Button */}
-            <TouchableOpacity
-              style={[styles.settingItem, styles.advancedButton]}
-              onPress={handleTestNotification}
-            >
-              <View style={styles.settingLeft}>
-                <Text style={[styles.settingTitle, { color: colors.text }]}>
-                  Test Notification
-                </Text>
-                <Text style={[styles.settingSubtitle, { color: colors.text, opacity: 0.7 }]}>
-                  Send a test notification to your device
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.text} style={{ marginLeft: 8 }} />
-            </TouchableOpacity>
+            {/* Test Notification Button (dev only) */}
+            {__DEV__ && (
+              <TouchableOpacity
+                style={[styles.settingItem, styles.advancedButton]}
+                onPress={handleTestNotification}
+              >
+                <View style={styles.settingLeft}>
+                  <Text style={[styles.settingTitle, { color: colors.text }]}>
+                    Test Notification
+                  </Text>
+                  <Text style={[styles.settingSubtitle, { color: colors.text, opacity: 0.7 }]}>
+                    Send a test notification to your device
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.text} style={{ marginLeft: 8 }} />
+              </TouchableOpacity>
+            )}
 
             {renderSettingItem(
               'Reset App',

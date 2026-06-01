@@ -704,9 +704,18 @@ const InboxScreen = ({ navigation }: InboxScreenProps) => {
           setLoading(false);
         }, 1000); // Additional delay to ensure loading is complete
       }, 3000); // 3-second delay
-    } catch (e) {
-      setError(e as Error);
+    } catch (e: any) {
       setLoading(false);
+      // Show a helpful, actionable message instead of replacing the whole inbox
+      // with the raw error screen. triggerBackfill throws a friendly message
+      // when Gmail access has expired (401 needsReauth).
+      const message =
+        typeof e?.message === 'string' && e.message.toLowerCase().includes('gmail access')
+          ? e.message
+          : 'Could not fetch new newsletters. Please check your connection and try again.';
+      Alert.alert('Refresh failed', message, [{ text: 'OK' }]);
+      // Still surface whatever messages already exist on the backend.
+      loadMessages();
     }
   };
 
@@ -1035,10 +1044,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pullDownText: {
-    color: 'red',
+    color: '#718096',
     marginTop: 16,
     textAlign: 'center',
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   item: {
     padding: 20,

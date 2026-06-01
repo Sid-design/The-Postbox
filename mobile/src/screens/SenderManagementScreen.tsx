@@ -226,10 +226,11 @@ const SenderManagementScreen = () => {
   const handleToggleSubscription = async (senderId: number, currentStatus: boolean) => {
     const newStatus = !currentStatus;
     
-    // Optimistic UI update
+    // Optimistic UI update. The checkbox renders from `is_subscribed`, so we
+    // must update that field (not `is_active`) or the tap appears to do nothing.
     setSenders(currentSenders =>
       currentSenders.map(sender =>
-        sender.id === senderId ? { ...sender, is_active: newStatus ? 1 : 0 } : sender
+        sender.id === senderId ? { ...sender, is_subscribed: newStatus ? 1 : 0 } : sender
       )
     );
 
@@ -248,9 +249,9 @@ const SenderManagementScreen = () => {
     const allActive = senders.every(sender => sender.is_subscribed === 1);
     const newStatus = !allActive; // If all are active, make them inactive, otherwise make them active
 
-    // Optimistic UI update
+    // Optimistic UI update (update is_subscribed — the field the checkbox reads)
     setSenders(currentSenders =>
-      currentSenders.map(sender => ({ ...sender, is_active: newStatus ? 1 : 0 }))
+      currentSenders.map(sender => ({ ...sender, is_subscribed: newStatus ? 1 : 0 }))
     );
 
     // Track all changes in context for later sync
@@ -278,7 +279,7 @@ const SenderManagementScreen = () => {
         matchesStatus = sender.is_subscribed === 1;
         break;
       case 'inactive':
-        matchesStatus = sender.is_active === 0;
+        matchesStatus = sender.is_subscribed === 0;
         break;
       default:
         matchesStatus = true; // 'all'

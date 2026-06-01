@@ -125,6 +125,11 @@ const SettingsStackNavigator = () => {
         component={SettingsScreen}
         options={{ title: 'Settings' }}
       />
+      <SettingsStack.Screen
+        name="ConnectedMailboxes"
+        component={ConnectedMailboxesScreen}
+        options={{ title: 'Connected Mailboxes' }}
+      />
     </SettingsStack.Navigator>
   );
 };
@@ -140,7 +145,17 @@ const MainTabs = () => {
       screenOptions={({ route }) => ({
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.text,
+        // Single source of truth for the tab bar style. Previously each screen
+        // redefined tabBarStyle and three of them only set { position: 'absolute' },
+        // which collapsed the bar to zero height (no background/height) when those
+        // tabs were focused — making the bar "disappear".
         tabBarStyle: {
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 60,
+          paddingBottom: 2,
           paddingTop: 8,
           backgroundColor: colors.card,
           borderTopWidth: 1,
@@ -176,18 +191,6 @@ const MainTabs = () => {
           title: 'Mailbox',
           tabBarActiveBackgroundColor: 'transparent',
           tabBarInactiveBackgroundColor: 'transparent',
-          tabBarStyle: {
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 60,
-            paddingBottom: 2,
-            paddingTop: 8,
-            backgroundColor: colors.card,
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-          },
           headerShown: false,
         }}
       />
@@ -198,9 +201,6 @@ const MainTabs = () => {
           title: 'Sender',
           tabBarActiveBackgroundColor: 'transparent',
           tabBarInactiveBackgroundColor: 'transparent',
-          tabBarStyle: {
-            position: 'absolute',
-          },
           tabBarLabelStyle: {
             fontSize: 11, // Reduced font size for subscriptions tab
           },
@@ -215,9 +215,6 @@ const MainTabs = () => {
           title: 'Saved',
           tabBarActiveBackgroundColor: 'transparent',
           tabBarInactiveBackgroundColor: 'transparent',
-          tabBarStyle: {
-            position: 'absolute',
-          },
           headerShown: false,
         }}
       />
@@ -228,11 +225,6 @@ const MainTabs = () => {
           title: 'Settings',
           tabBarActiveBackgroundColor: 'transparent',
           tabBarInactiveBackgroundColor: 'transparent',
-          tabBarStyle: {
-            position: 'absolute',
-
-            
-          },
           headerShown: false,
         }}
       />
