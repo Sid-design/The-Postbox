@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { apiClient, getUserSubscriptions, DiscoverableSender, getAuthToken } from '../api/client';
+import { IS_E2E } from '../config/e2e';
 import { useNavigation } from '@react-navigation/native';
 import { useSubscriptionChanges } from '../context/SubscriptionContext';
 
@@ -164,11 +165,14 @@ const SenderManagementScreen = () => {
       setSenders(sendersData);
     } catch (error) {
       console.error('[SENDER-MGMT] ❌ Failed to load senders:', error);
-      Alert.alert(
-        'Connection Error',
-        'Unable to load your senders. Please check your connection and try again.',
-        [{ text: 'OK' }]
-      );
+      // Suppressed in E2E so the alert doesn't block the screen for screenshots.
+      if (!IS_E2E) {
+        Alert.alert(
+          'Connection Error',
+          'Unable to load your senders. Please check your connection and try again.',
+          [{ text: 'OK' }]
+        );
+      }
     } finally {
       setLoading(false);
     }

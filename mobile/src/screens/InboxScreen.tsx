@@ -28,6 +28,7 @@ import { useSubscriptionChanges } from '../context/SubscriptionContext';
 import { colors } from '../theme';
 import { InboxScreenProps, Message } from '../navigation/types';
 import { apiClient, debugAuth } from '../api/client';
+import { IS_E2E } from '../config/e2e';
 import { useAuth } from '../context/AuthContext';
 import { getSenders, getMessages, Sender, triggerBackfill } from '../api/client';
 import * as Crypto from 'expo-crypto';
@@ -569,12 +570,15 @@ const InboxScreen = ({ navigation }: InboxScreenProps) => {
     } catch (e) {
       console.error('[INBOX] ❌ Failed to load messages:', e);
       setError(e as Error);
-      // Don't fall back to empty data silently - show error to user
-      Alert.alert(
-        'Connection Error',
-        'Unable to load your messages. Please check your connection and try again.',
-        [{ text: 'OK' }]
-      );
+      // Don't fall back to empty data silently - show error to user.
+      // (Suppressed in E2E so the alert doesn't block the screen for screenshots.)
+      if (!IS_E2E) {
+        Alert.alert(
+          'Connection Error',
+          'Unable to load your messages. Please check your connection and try again.',
+          [{ text: 'OK' }]
+        );
+      }
     } finally {
       setLoading(false);
     }

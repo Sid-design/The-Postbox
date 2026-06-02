@@ -18,6 +18,12 @@ on:
       - 'mobile/**'
       - '.github/workflows/ios-maestro.yml'
 
+# Cancel an in-progress run when a newer commit is pushed to the same ref, so we
+# don't waste a ~15 min build on superseded commits.
+concurrency:
+  group: ios-maestro-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ios-maestro:
     # macos-15 ships Xcode 16.x (iOS 18 SDK). Required because expo-modules-core
@@ -148,6 +154,15 @@ jobs:
           xcrun simctl ui "$SIM_UDID" appearance dark
           maestro test .maestro/screens-tour.yaml --debug-output maestro-debug-dark
 
+      - name: Collect crash diagnostics
+        if: failure()
+        run: |
+          mkdir -p crash-logs
+          # iOS crash reports (small, targeted) — reveal native crashes if any.
+          cp -R ~/Library/Logs/DiagnosticReports/. crash-logs/ 2>/dev/null || true
+          # App stdout/stderr from the simulator (JS errors, console logs).
+          xcrun simctl spawn "$SIM_UDID" log collect --output crash-logs/sim.logarchive 2>/dev/null || true
+
       - name: Upload Maestro artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -157,4 +172,5 @@ jobs:
             mobile/maestro-report.xml
             mobile/maestro-debug/**
             mobile/maestro-debug-dark/**
+            mobile/crash-logs/**
           if-no-files-found: warn
