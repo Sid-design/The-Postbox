@@ -34,6 +34,12 @@ export default {
     version: '1.0.0',
     orientation: 'portrait',
     userInterfaceStyle: 'automatic',
+    icon: './assets/icon.png',
+    splash: {
+      image: './assets/splash-icon.png',
+      resizeMode: 'contain',
+      backgroundColor: '#4A90E2',
+    },
     ios: {
       supportsTablet: true,
       bundleIdentifier: BUNDLE_ID,
@@ -55,6 +61,15 @@ export default {
         ],
       },
     },
+    android: {
+      adaptiveIcon: {
+        foregroundImage: './assets/adaptive-icon.png',
+        backgroundColor: '#4A90E2',
+      },
+    },
+    web: {
+      favicon: './assets/favicon.png',
+    },
     plugins: [
       [
         'expo-build-properties',
@@ -74,7 +89,14 @@ export default {
       // registerForPushNotificationsAsync() throws
       // "no valid aps-environment entitlement string found for application"
       // (caught in Sentry after the CNG migration dropped this plugin).
-      'expo-notifications',
+      // Also sets the Android notification icon + accent color from our brand assets.
+      [
+        'expo-notifications',
+        {
+          icon: './assets/notification-icon.png',
+          color: '#4A90E2',
+        },
+      ],
       // Provides the native config for secure token storage (used by
       // AuthContext at launch) and on-demand fonts.
       'expo-secure-store',
