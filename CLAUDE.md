@@ -205,109 +205,50 @@ EXPO_PUBLIC_API_URL=http://192.168.18.x:3000
 
 ---
 
-## Next Session Starting Point (2026-06-01)
+## Testing & QA model (Session 11 — current)
 
-### Before the session — two things to do manually
-1. **Verify subscription import on device** — install Build 13 (`39a37fef`), go to Senders tab → pull to refresh. Both the Sentry crash loop and senders schema are fixed and deployed; this is just confirming end-to-end on device.
-2. **Merge `fix/app-issues-post-cng` → master** once confirmed working. All the session's work lives on that branch.
+We use **three tools for three jobs**. Match the loop to the task:
 
-### Session goal: set up `idevicescreenshot` + run the first visual QA pass
+| Tool | When | Where / speed |
+|---|---|---|
+| **Jest** | Any logic/render change | Local (`npx jest`, secs) + CI gate `test.yml` on Linux, every PR (~1 min) |
+| **Local phone hot-reload + manual screenshots** | Active *visual* work (dark mode, layout, safe-area) | Your phone + `expo start`; JS changes hot-reload in ~1s, **no build**, real data |
+| **Maestro on free cloud-Mac (GitHub Actions)** | Unattended regression net | `.github/workflows/ios-maestro.yml`, **master push + manual only**, ~15 min |
 
-The visual QA loop we're targeting:
-```
-Claude runs npx jest  →  fix logic bugs
-Claude takes iPhone screenshot  →  spot visual bugs  →  fix  →  hot-reload  →  screenshot again
-```
+**Key facts:**
+- UI (JS) changes do **not** need a native rebuild — only CI does (it's an empty machine). The fast path for UI iteration is the **local phone loop**, not CI.
+- The Mac build runs **only on merge to master** (not every PR) and its Maestro steps are **`continue-on-error`** — informational baseline screenshots, never a merge gate. Don't iterate against it.
+- **E2E auth bypass:** building with `EXPO_PUBLIC_E2E=1` makes `AuthContext` seed a stub session so Maestro reaches the logged-in tabs (Google OAuth can't be automated). In E2E, blocking alerts + push registration are suppressed (`src/config/e2e.ts` → `IS_E2E`). Screens render empty states (no real data) — good for layout/dark-mode, not populated lists. For populated screens, add a client-side mock-data layer.
+- Maestro flows live in `mobile/.maestro/` (`smoke.yaml`, `screens-tour.yaml`). The maintained Jest suite is `__tests__/screens/ScreenQA.test.tsx` (35/35). Other Jest suites have pre-existing failures (separate cleanup).
 
-**Step 1 — Install `libimobiledevice` on Windows (one-time)**
-
-This is the CLI toolkit that lets Windows talk to a connected iPhone. It includes `idevicescreenshot` which saves what's on screen as a PNG file that Claude can read.
-
-Option A — pre-built binaries (easiest):
-```
-winget install libimobiledevice
-```
-Or download from: https://github.com/libimobiledevice-win32/imobiledevice-net/releases
-
-Verify install: `idevicescreenshot --version`
-
-**Step 2 — Start the dev client session**
+### Local phone screenshot loop (fast UI iteration)
 ```bash
-# In one terminal (backend, optional for UI work):
-cd backend && node index-postgres.js
-
-# In another terminal:
-cd mobile && npx expo start
+cd mobile && npx expo start      # open The Postbox (Dev) on the iPhone, real login
 ```
-Then open The Postbox (Dev) on your iPhone and connect to the Metro server.
-
-**Step 3 — Claude runs the autonomous QA loop**
-```bash
-# Take a screenshot of whatever is on the iPhone screen right now
-idevicescreenshot screen.png
-
-# Run the Jest QA suite
-cd mobile && npx jest __tests__/screens/ScreenQA.test.tsx --verbose
-```
-Claude reads `screen.png`, identifies layout/visual bugs, cross-references with Jest failures, fixes code, hot-reload fires in ~1s on device, takes another screenshot, verifies.
-
-### QA loop — what Claude handles autonomously
-| What | How |
-|---|---|
-| Crash / render bugs | `npx jest` — 35 tests |
-| Missing elements, wrong text | `npx jest` assertions |
-| Visual layout, dark mode, safe-area | `idevicescreenshot` + read PNG |
-| Interaction → visual result | Fix code → Expo hot-reload → screenshot |
-| Report | Bug list with severity + screenshots |
-| Fix approval | You say yes/no per bug batch |
+You drop a screenshot into a shared/local folder → Claude reads the PNG → edits code → Metro hot-reloads in ~1s → you re-screenshot. Real data, no builds.
 
 ### What still needs you
-- Actual OAuth/Gmail sign-in flow (can't automate Google's consent screen)
-- Push notification delivery (needs APNS round-trip)
-- Confirming fixes feel right in-hand (subjective UX judgements)
-
----
-
-## iOS Bug Audit & QA Strategy
-
-### Jest test suite (built, 35/35 passing)
-```bash
-cd mobile && npx jest __tests__/screens/ScreenQA.test.tsx --verbose
-```
-Covers: render without crashing, key UI elements, interactions, empty states, navigation calls, unread badges, sender toggles. Run this first every session for the baseline.
-
-### Screenshot QA via `idevicescreenshot` (to set up next session)
-`libimobiledevice` → `idevicescreenshot screen.png` → Claude reads the PNG → visual inspection of the actual running app on device. Requires iPhone plugged in via USB + dev client running. After one-time setup, fully autonomous.
-
-### What the tests cover vs. what needs screenshots
-
-| Concern | Jest covers? | Screenshot covers? |
-|---|---|---|
-| Screen renders without crash | ✅ | ✅ |
-| Correct text / elements present | ✅ | ✅ |
-| Interaction logic (toggle, press) | ✅ | via hot-reload |
-| Dark mode colours | ❌ | ✅ |
-| Safe-area / notch layout | ❌ | ✅ |
-| Tab bar on different screen sizes | ❌ | ✅ |
-| WebView HTML rendering | ❌ | ✅ |
-| OAuth / push / haptics | ❌ | manual only |
+- OAuth/Gmail sign-in (can't automate Google's consent screen)
+- Push delivery (needs APNS round-trip on a physical device)
+- Subjective "feels right in-hand" UX calls
 
 ### Known bugs to fix (priority order)
-**P1 — functional, fixable in Jest+code:**
-- `SenderManagementScreen`: dark mode broken — `StyleSheet` uses hardcoded `colors.light.*` throughout (same issue fixed in Settings this session)
+**P1 — functional:**
+- `SenderManagementScreen`: dark mode broken — `StyleSheet` hardcodes `colors.light.*` throughout, and the sub-components (SenderItem/FilterModal/ActionButton) read the module-scope `styles`. Fix = make styles theme-aware (`useColorScheme` → `colors[scheme]`) and pass styles/colors into the sub-components. **(Next up — do on the local loop.)**
 - `SavedScreen`: mark-as-read, delete swipe actions — behaviour not tested
-- `DetailScreen`: font-size preference not persisting, cache stats not surfaced to user
-- `ConnectedMailboxesScreen`: content unknown — read the file, audit it
+- `DetailScreen`: font-size preference not persisting, cache stats not surfaced
+- `ConnectedMailboxesScreen`: content never audited
 
-**P2 — visual, need screenshots:**
+**P2 — visual (local screenshots):**
 - Tab bar safe-area padding on notch/Dynamic Island iPhones
-- Groups UI: group creation flow, filter by group, group persistence
-- Dark mode on every screen (not just Settings)
-- Empty state affordances (text + CTA button on every screen)
+- Groups UI: creation flow, filter by group, persistence
+- Dark mode on every screen (Settings already follows the live nav theme)
+- Empty-state affordances (text + CTA) on every screen
 
 **P3 — pre-App-Store cleanup:**
-- Privacy/Terms links point to GitHub MD — need real hosted pages before submission
-- Support email is personal Gmail — needs a `support@thepostbox.io` or similar
+- ✅ Privacy/Terms now hosted on GitHub Pages — https://sid-design.github.io/The-Postbox/ (privacy.html, terms.html). App Settings links updated; privacy corrected to Expo Push + Sentry (not Firebase).
+- ✅ Professional app icon + splash + notification/adaptive icons shipped (ultra-minimal postbox mark, `#4A90E2`).
+- Support email is personal Gmail (`siddharth.daswani7@gmail.com`) — fine for now per owner.
 
 ## Current Status (as of 2026-06-01)
 
@@ -344,9 +285,10 @@ Covers: render without crashing, key UI elements, interactions, empty states, na
 | App bugs (tab bar, ConnectedMailboxes, push entitlement, sender toggle, etc.) | ✅ | 8 fixes in Build 13 `39a37fef`. |
 | `senders` schema + subscription import broken | ✅ | Schema migration + backend redeployed 2026-06-01. |
 | `firebase-admin` / `@google-cloud/pubsub` removal | ✅ | Removed 2026-06-01, redeployed. |
-| iOS bug audit & UI QA | ⏳ | **NEXT SESSION.** QA infrastructure built (35/35 tests pass). See QA strategy below. |
-| `FIREBASE_SERVICE_ACCOUNT_KEY` Fly secret cleanup | ☐ | Run: `flyctl secrets unset FIREBASE_SERVICE_ACCOUNT_KEY --app the-postbox-backend` |
-| Merge `fix/app-issues-post-cng` → master | ☐ | Branch is stable; merge when next build confirms subscription import. |
+| Merge `fix/app-issues-post-cng` → master | ✅ | Merged (subscription import confirmed on Build 13). |
+| Cloud-Mac Maestro CI (free, public repo) | ✅ | Live; runs on master push (non-blocking). PRs get fast Jest on Linux. |
+| E2E auth bypass + branding icon + hosted legal pages | ✅ | Session 11 (PRs #2/#3/#4 merged). |
+| iOS dark-mode bug fixes (P1/P2) | ⏳ | **NEXT.** Do on the local phone hot-reload loop. Start: SenderManagementScreen dark mode. |
 | TestFlight | ☐ | After UI/bug pass. |
 
 ### Preview build — failure root cause & fix (2026-05-29)
