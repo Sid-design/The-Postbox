@@ -3,6 +3,7 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerDeviceToken } from '../api/client';
+import { IS_E2E } from '../config/e2e';
 
 // This is required for notifications to show up while the app is in the foreground
 Notifications.setNotificationHandler({
@@ -16,6 +17,12 @@ Notifications.setNotificationHandler({
 });
 
 export async function registerForPushNotificationsAsync() {
+  // In E2E/CI builds there is no physical device and no real session; skip push
+  // registration entirely so it doesn't pop the "Must use physical device" alert
+  // over the screens Maestro is trying to screenshot.
+  if (IS_E2E) {
+    return;
+  }
   let token;
   if (Device.isDevice) {
     const { status: existingStatus } =

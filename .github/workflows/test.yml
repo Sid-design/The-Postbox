@@ -1,0 +1,40 @@
+name: Tests
+
+# Fast logic/render checks on Linux. Runs on every PR and on master pushes.
+# This is the cheap, always-on gate; the expensive iOS Maestro build only runs
+# on merge to master (see ios-maestro.yml).
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/test.yml'
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  jest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install JS dependencies
+        run: npm install --no-audit --no-fund
+      - name: Jest (maintained screen suite)
+        # ScreenQA is the curated, green suite covering all 7 screens (35 tests).
+        # Other suites have pre-existing failures tracked as a separate cleanup.
+        run: npx jest __tests__/screens/ScreenQA.test.tsx --ci

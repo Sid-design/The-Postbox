@@ -1,0 +1,15 @@
+# Walks every tab and screenshots it (E2E build, logged-in via auth bypass).
+# These screenshots are the raw material for visual QA — dark mode, safe-area,
+# empty states, layout — reviewed from the uploaded CI artifacts.
+appId: io.thepostbox.app
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Mailbox"
+- takeScreenshot: tab-mailbox
+- tapOn: "Sender"
+- takeScreenshot: tab-sender
+- tapOn: "Saved"
+- takeScreenshot: tab-saved
+- tapOn: "Settings"
+- takeScreenshot: tab-settings

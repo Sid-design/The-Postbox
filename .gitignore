@@ -32,3 +32,11 @@ build/
 
 # macOS
 .DS_Store
+
+# CI build output (DerivedData kept outside ios/ for caching)
+mobile/dd/
+mobile/maestro-debug/
+mobile/maestro-debug-dark/
+
+# Local branding/icon tooling (scratch, not part of the app)
+.branding-tools/

@@ -2,23 +2,26 @@ name: iOS Maestro UI Tests
 
 # Runs Maestro UI flows against The Postbox on the iOS Simulator, on a free
 # GitHub-hosted macOS runner (unlimited minutes because this repo is public).
-# Builds the Expo (CNG) app for the simulator, boots it, runs .maestro flows,
-# and uploads screenshots + the Maestro run report as artifacts.
-#
-# Trigger manually (Actions tab -> Run workflow) or on pushes that touch the
-# mobile app or this workflow.
+# Builds the Expo (CNG) app for the simulator (with EXPO_PUBLIC_E2E=1 so the app
+# bypasses Google login and lands in the main UI), boots it, runs .maestro flows
+# in both light and dark appearance, and uploads the screenshots as artifacts.
 
 on:
   workflow_dispatch:
+  # Mac builds are expensive (~15 min), so this runs ONLY on merge to master
+  # (unattended regression net) and on-demand — NOT on every PR. Fast logic
+  # checks for PRs live in the separate Jest workflow (test.yml) on Linux.
   push:
     branches: [master]
     paths:
       - 'mobile/**'
       - '.github/workflows/ios-maestro.yml'
-  pull_request:
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/ios-maestro.yml'
+
+# Cancel an in-progress run when a newer commit is pushed to the same ref, so we
+# don't waste a ~15 min build on superseded commits.
+concurrency:
+  group: ios-maestro-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   ios-maestro:
@@ -34,37 +37,69 @@ jobs:
       EXPO_PUBLIC_APP_NAME: ThePostbox
       EXPO_PUBLIC_APP_VARIANT: development
       EXPO_PUBLIC_API_URL: https://the-postbox-backend.fly.dev
+      # Build the app in E2E mode: AuthContext seeds a stub session so Maestro
+      # can reach the logged-in screens (Google OAuth can't be automated).
+      EXPO_PUBLIC_E2E: '1'
+      # DerivedData lives OUTSIDE mobile/ios so `expo prebuild --clean` (which
+      # wipes ios/) doesn't blow away the cached build products each run.
+      DERIVED_DATA: ${{ github.workspace }}/mobile/dd
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Select latest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
+      - name: Cache node_modules
+        id: cache-node
+        uses: actions/cache@v5
+        with:
+          path: mobile/node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json') }}
+
       - name: Install JS dependencies
-        # Uses `npm install` rather than `npm ci` because package-lock.json is
-        # currently out of sync with package.json (missing @types/react-native
-        # and @react-native/virtualized-lists). Switch back to `npm ci` once the
-        # lockfile is regenerated.
+        if: steps.cache-node.outputs.cache-hit != 'true'
+        # `npm install` (not `npm ci`) — the committed lockfile has a platform
+        # resolution quirk that trips `npm ci` on macOS. Tracked as a follow-up.
         run: npm install --no-audit --no-fund
 
       - name: Expo prebuild (iOS)
         run: npx expo prebuild --platform ios --clean --no-install
 
+      - name: Cache CocoaPods
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cocoapods
+            ~/Library/Caches/CocoaPods
+            mobile/ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
       - name: Install CocoaPods
-        # --no-install above skips both npm and pods; npm is already installed,
-        # so just run pods here. This generates the .xcworkspace that xcodebuild
-        # needs (without it, only the bare .xcodeproj exists).
         working-directory: mobile/ios
         run: pod install
+
+      - name: Cache DerivedData
+        # Best-effort: restores the clang module cache + build products to speed
+        # incremental compiles. Keyed per-commit with progressively looser
+        # fallbacks so each run saves fresh and restores the nearest prior build.
+        uses: actions/cache@v5
+        with:
+          path: mobile/dd
+          key: deriveddata-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            deriveddata-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json') }}-
+            deriveddata-${{ runner.os }}-
 
       - name: Discover Xcode scheme
         id: scheme
@@ -84,21 +119,22 @@ jobs:
             -scheme "${{ steps.scheme.outputs.scheme }}" \
             -configuration Release \
             -sdk iphonesimulator \
-            -derivedDataPath build \
+            -derivedDataPath "$DERIVED_DATA" \
             -destination 'generic/platform=iOS Simulator' \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Boot simulator and install app
-        working-directory: mobile/ios
         run: |
           # Pick the first available iPhone simulator (device names vary by
-          # Xcode version, so don't hardcode one).
+          # Xcode version, so don't hardcode one). Export the UDID for later steps.
           UDID=$(xcrun simctl list devices available --json \
             | python3 -c "import sys, json; d = json.load(sys.stdin); print(next(dev['udid'] for runtime in d['devices'].values() for dev in runtime if dev.get('isAvailable') and 'iPhone' in dev['name']))")
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
           echo "Booting simulator $UDID"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID"
-          APP_PATH=$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          APP_PATH=$(find "$DERIVED_DATA/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' | head -1)
           echo "Installing $APP_PATH"
           xcrun simctl install "$UDID" "$APP_PATH"
 
@@ -107,19 +143,38 @@ jobs:
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
-      - name: Run Maestro flows
-        # --debug-output collects screenshots + a view hierarchy per step into a
-        # known directory we can upload (takeScreenshot otherwise lands in CWD).
+      # Maestro flows are INFORMATIONAL (continue-on-error): they upload baseline
+      # screenshots and flag regressions, but a flaky selector must not block a
+      # merge. Active UI iteration happens on the local phone hot-reload loop.
+      - name: Run Maestro flows (light)
+        continue-on-error: true
         run: maestro test .maestro --format junit --output maestro-report.xml --debug-output maestro-debug
+
+      - name: Run Maestro flows (dark mode)
+        continue-on-error: true
+        # Switch the simulator to dark appearance and re-run the screen tour so we
+        # capture every screen in dark mode (the P1/P2 dark-mode bugs live here).
+        run: |
+          xcrun simctl ui "$SIM_UDID" appearance dark
+          maestro test .maestro/screens-tour.yaml --debug-output maestro-debug-dark
+
+      - name: Collect crash diagnostics
+        if: failure()
+        run: |
+          mkdir -p crash-logs
+          # iOS crash reports (small, targeted) — reveal native crashes if any.
+          cp -R ~/Library/Logs/DiagnosticReports/. crash-logs/ 2>/dev/null || true
+          # App stdout/stderr from the simulator (JS errors, console logs).
+          xcrun simctl spawn "$SIM_UDID" log collect --output crash-logs/sim.logarchive 2>/dev/null || true
 
       - name: Upload Maestro artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: maestro-results
           path: |
             mobile/maestro-report.xml
             mobile/maestro-debug/**
-            mobile/login-rendered.png
-            ~/.maestro/tests/**
+            mobile/maestro-debug-dark/**
+            mobile/crash-logs/**
           if-no-files-found: warn

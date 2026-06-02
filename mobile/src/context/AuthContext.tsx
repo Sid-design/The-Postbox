@@ -36,6 +36,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const TOKEN_KEY = 'user_auth_token';
 const REFRESH_TOKEN_KEY = 'user_refresh_token';
 
+// E2E test mode: when built with EXPO_PUBLIC_E2E=1 (CI only — never production),
+// the app skips the Google login screen by seeding a stub in-memory token so
+// Maestro can reach and screenshot the logged-in screens. The stub is never
+// written to SecureStore, and the response interceptor below short-circuits all
+// token-refresh / recovery dialogs in this mode so API 401s don't block the UI.
+const IS_E2E = process.env.EXPO_PUBLIC_E2E === '1';
+const E2E_STUB_TOKEN = 'e2e-stub-token';
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [isFirstLogin, setIsFirstLogin] = useState(false);
@@ -54,6 +62,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ]);
         if (token) {
           setAuthToken(token);
+        } else if (IS_E2E) {
+          // No real session, but E2E build → drop straight into the app.
+          setAuthToken(E2E_STUB_TOKEN);
         }
         // Keep refresh token available in storage; we read it when needed
       } catch (e) {
@@ -253,6 +264,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       async (error) => {
         const originalRequest = error.config;
         const status = error.response?.status;
+
+        // E2E builds use a stub token that the backend rejects; never attempt
+        // refresh or surface the recovery dialog — just let calls fail quietly so
+        // screens render their empty/error states for screenshots.
+        if (IS_E2E) {
+          return Promise.reject(error);
+        }
 
         // Handle 401/403 errors with enhanced token refresh
         if ((status === 401 || status === 403) && !originalRequest._retry) {
