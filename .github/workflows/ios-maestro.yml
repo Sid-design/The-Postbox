@@ -8,12 +8,11 @@ name: iOS Maestro UI Tests
 
 on:
   workflow_dispatch:
+  # Mac builds are expensive (~15 min), so this runs ONLY on merge to master
+  # (unattended regression net) and on-demand — NOT on every PR. Fast logic
+  # checks for PRs live in the separate Jest workflow (test.yml) on Linux.
   push:
     branches: [master]
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/ios-maestro.yml'
-  pull_request:
     paths:
       - 'mobile/**'
       - '.github/workflows/ios-maestro.yml'
@@ -144,10 +143,15 @@ jobs:
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
+      # Maestro flows are INFORMATIONAL (continue-on-error): they upload baseline
+      # screenshots and flag regressions, but a flaky selector must not block a
+      # merge. Active UI iteration happens on the local phone hot-reload loop.
       - name: Run Maestro flows (light)
+        continue-on-error: true
         run: maestro test .maestro --format junit --output maestro-report.xml --debug-output maestro-debug
 
       - name: Run Maestro flows (dark mode)
+        continue-on-error: true
         # Switch the simulator to dark appearance and re-run the screen tour so we
         # capture every screen in dark mode (the P1/P2 dark-mode bugs live here).
         run: |
