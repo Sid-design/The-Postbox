@@ -351,6 +351,18 @@ All profiles set `EXPO_PUBLIC_API_URL = https://the-postbox-backend.fly.dev`. `a
 
 ---
 
+## 9b. Testing & CI (added Session 11)
+
+Two CI workflows + a local loop, each for a distinct job:
+
+- **`.github/workflows/test.yml`** — Jest on Ubuntu. Runs on **every PR** (and master push). Fast (~1 min) logic/render gate. Runs the maintained `mobile/__tests__/screens/ScreenQA.test.tsx` (35/35). Other Jest suites have pre-existing failures (tech debt).
+- **`.github/workflows/ios-maestro.yml`** — Maestro UI tests on a **free GitHub-hosted macOS runner** (unlimited because the repo is public). Builds the Expo CNG app for the iOS Simulator (`macos-15` / Xcode 16+ — required for expo-modules-core's iOS 18 `.onGeometryChange`), boots a simulator, runs `mobile/.maestro/*.yaml`, uploads screenshots. **Runs on master push + manual dispatch only** (not per-PR); Maestro steps are **`continue-on-error`** (informational baseline, not a merge gate). Caching: node_modules / CocoaPods / DerivedData (DerivedData kept outside `ios/` so `prebuild --clean` doesn't wipe it). Concurrency cancels superseded runs.
+- **Local phone hot-reload loop** — the fast path for *visual* iteration: `expo start` + dev client, JS changes hot-reload in ~1s with real data, no native rebuild. Manual screenshots reviewed for dark mode / layout / safe-area.
+
+**E2E auth bypass:** building with `EXPO_PUBLIC_E2E=1` makes `AuthContext` seed a non-persistent stub session so Maestro reaches the logged-in tabs (Google OAuth can't be automated). `src/config/e2e.ts` exports `IS_E2E`; in that mode the app skips push registration and suppresses connection-error alerts (the stub token gets 401s) so screens render empty states cleanly. No real newsletter data appears (backend rejects the stub, and there's no Gmail-connected account) — for populated screens, add a client-side mock-data layer.
+
+---
+
 ## 10. External Dependencies & Credentials
 
 | Service | What / Where |
