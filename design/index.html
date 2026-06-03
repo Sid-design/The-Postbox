@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Postbox — Design Mockup</title>
+<style>
+  /* ============================================================
+     DESIGN TOKENS (mirror of DESIGN_SYSTEM.md). Edit here to iterate.
+     ============================================================ */
+  :root {
+    --primary: #4A90E2;
+    --on-primary: #FFFFFF;
+    --bg: #F4F6F8;
+    --surface: #FFFFFF;
+    --text: #1A202C;
+    --text-2: #718096;
+    --border: #E2E8F0;
+    --border-strong: #A0AEC0;
+    --fill: #F7FAFC;
+    --danger: #DC2626;
+
+    --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
+    --sp-xs:4px; --sp-sm:8px; --sp-md:12px; --sp-lg:16px; --sp-xl:20px;
+    --shadow: 0 4px 8px rgba(0,0,0,0.10);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body.dark {
+    --bg:#1A202C; --surface:#2D3748; --text:#E2E8F0; --text-2:#A0AEC0;
+    --border:#3A4658; --border-strong:#4A5568; --fill:#252D3B; --danger:#F87171;
+  }
+  /* Sepia — warm paper reading theme. Brand blue kept as the accent. */
+  body.sepia {
+    --bg:#F1E7CF; --surface:#FAF3E0; --text:#5B4636; --text-2:#8A7866;
+    --border:#E4D8BD; --border-strong:#C9B894; --fill:#F3EAD5; --danger:#B5462F;
+  }
+  /* In sepia the date chip should be warm, not cold gray */
+  body.sepia .mcard .datechip { background:#E8DcC0; color:#6B5A44; }
+
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body { font-family: var(--font); background:#525d6e; padding:32px; color:#fff; }
+  .toolbar { text-align:center; margin-bottom:24px; }
+  .toolbar h1 { font-size:18px; font-weight:600; margin-bottom:4px; }
+  .toolbar p { font-size:13px; opacity:.8; }
+  .toolbar button {
+    margin-top:12px; background:var(--primary); color:#fff; border:none;
+    padding:8px 18px; border-radius:var(--r-pill); font-size:14px; cursor:pointer;
+  }
+  .board { display:flex; gap:28px; flex-wrap:wrap; justify-content:center; }
+
+  /* iPhone frame */
+  .phone {
+    width:320px; height:693px; background:var(--bg); border-radius:42px;
+    box-shadow:0 0 0 11px #11151c, 0 18px 40px rgba(0,0,0,.45);
+    overflow:hidden; position:relative; display:flex; flex-direction:column;
+    color:var(--text);
+  }
+  .phone .label { position:absolute; top:-26px; left:0; right:0; text-align:center;
+    font-size:12px; color:#cfd6e0; }
+  .notch { position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:150px; height:26px; background:#11151c; border-radius:0 0 18px 18px; z-index:30; }
+  .statusbar { height:46px; display:flex; align-items:flex-end; justify-content:space-between;
+    padding:0 22px 4px; font-size:13px; font-weight:600; color:var(--text); }
+
+  /* Generic screen chrome */
+  .screen { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .navbar { background:var(--surface); padding:10px 16px; display:flex; align-items:center;
+    justify-content:space-between; }
+  .navbar .title { font-size:20px; font-weight:700; }
+  .navbar .actions { display:flex; gap:16px; align-items:center; color:var(--text); }
+  .icon { width:22px; height:22px; display:inline-block; }
+  .hicon { width:22px; height:22px; display:block; }
+  .scroll { flex:1; overflow-y:auto; }
+  .scroll::-webkit-scrollbar{ display:none; }
+
+  /* Segmented control */
+  /* Frozen filter strip — sticks under the title bar as the list scrolls.
+     Background matches the header surface (themed), so header + strip read as
+     one continuous bar in both light and dark. */
+  .seg { display:flex; gap:8px; padding:10px 16px 12px; background:var(--surface);
+    box-shadow:0 2px 4px rgba(0,0,0,0.06); position:relative; z-index:5; }
+  .seg span { font-size:14px; color:var(--text-2); padding:5px 16px; border-radius:16px;
+    border:1px solid var(--border-strong); }
+  .seg span.on { background:var(--primary); color:#fff; font-weight:600; border-color:var(--primary); }
+  .seg span.add { color:var(--text); font-weight:600; padding:5px 14px; }
+  .seg span.segspacer { flex:1; border:none; padding:0; min-width:0; }
+  .seg span.sortbtn { border:none; padding:5px 2px; color:var(--primary); font-weight:600;
+    display:inline-flex; align-items:center; gap:4px; font-size:13px; white-space:nowrap; }
+
+  /* Message card (Inbox / Saved) — matches the real app card you liked */
+  .mcard { position:relative; background:var(--surface); margin:8px 16px; padding:20px;
+    border-radius:16px; box-shadow:0 2px 4px rgba(0,0,0,.05); }
+  .mcard .from { font-size:18px; font-weight:700; color:var(--text); padding-right:18px; }
+  .mcard .subj { font-size:16px; color:var(--text); margin-top:4px; line-height:1.35; }
+  .mcard .datechip { display:inline-block; margin-top:10px; font-size:11px; background:#E2E8F0;
+    color:#4A5568; padding:3px 8px; border-radius:6px; }
+  .mcard .bk { position:absolute; right:16px; bottom:16px; color:var(--text); opacity:.85; }
+  .mcard .udot { position:absolute; top:14px; right:14px; width:10px; height:10px; border-radius:50%;
+    background:var(--primary); }
+  /* Saved variant — reading-list treatment (accent stripe, snippet, read time) */
+  .mcard.saved { border-left:4px solid var(--primary); padding-left:18px; }
+  .mcard .snip { font-size:13px; color:var(--text-2); margin-top:6px; line-height:1.35;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .mcard .metarow { display:flex; align-items:center; gap:8px; margin-top:10px; }
+  .mcard .metarow .datechip { margin-top:0; }
+  .mcard .readtime { font-size:11px; color:var(--primary); font-weight:600; }
+
+  /* List rows */
+  .row { display:flex; align-items:center; gap:12px; padding:16px 20px;
+    background:var(--surface); border-bottom:1px solid var(--border); }
+  .avatar { width:42px; height:42px; border-radius:50%; flex:0 0 auto;
+    background:var(--primary); color:#fff; display:flex; align-items:center;
+    justify-content:center; font-weight:700; font-size:16px; }
+  .row .body { flex:1; min-width:0; }
+  .row .body .from { font-size:16px; font-weight:600; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .row .body .subj { font-size:14px; color:var(--text-2); margin-top:2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .row .meta { font-size:12px; color:var(--text-2); flex:0 0 auto; align-self:flex-start; }
+  .unread { width:9px; height:9px; border-radius:50%; background:var(--primary); flex:0 0 auto; }
+
+  /* Sender management */
+  .subtitle { font-size:14px; color:var(--text-2); padding:14px 20px 6px; }
+  .linkbtn { color:var(--primary); font-weight:500; font-size:15px; text-align:center; padding:8px; }
+  .tiles { display:flex; gap:8px; padding:8px 16px 14px; }
+  .tile { flex:1; background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--r-sm); padding:10px 4px; text-align:center; font-size:11px; color:var(--text); }
+  .tile.on { background:var(--primary); border-color:var(--primary); color:#fff; }
+  .tile .ti { font-size:18px; display:block; margin-bottom:3px; }
+  .checkbox { width:24px; height:24px; border-radius:6px; border:2px solid var(--border-strong);
+    flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
+  .checkbox.on { background:var(--primary); border-color:var(--primary); color:#fff; font-size:14px; }
+  .email { font-size:12px; color:var(--text-2); margin-top:2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* Settings */
+  .sectionhead { font-size:18px; font-weight:700; color:var(--text); padding:18px 20px 8px; }
+  .card { background:var(--surface); margin:0 14px 4px; border-radius:var(--r-md); overflow:hidden; }
+  .srow { display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px 16px; border-bottom:1px solid var(--border); }
+  .srow:last-child { border-bottom:none; }
+  .srow .l .t { font-size:16px; font-weight:500; color:var(--text); }
+  .srow .l .s { font-size:13px; color:var(--text-2); margin-top:2px; }
+  .srow .r { font-size:14px; color:var(--text-2); display:flex; align-items:center; gap:6px; }
+  .chev { color:var(--border-strong); }
+  .toggle { width:46px; height:28px; border-radius:var(--r-pill); background:var(--primary);
+    position:relative; flex:0 0 auto; }
+  .toggle.off { background:var(--border-strong); }
+  .toggle::after { content:""; position:absolute; top:3px; left:21px; width:22px; height:22px;
+    border-radius:50%; background:#fff; transition:.2s; }
+  .toggle.off::after { left:3px; }
+
+  /* Revamped Sender screen */
+  .szone { background:var(--surface); padding-top:10px; box-shadow:0 2px 4px rgba(0,0,0,.06);
+    position:relative; z-index:5; }
+  .searchbar { display:flex; align-items:center; gap:8px; margin:0 16px 10px; padding:9px 12px;
+    background:var(--fill); border:1px solid var(--border); border-radius:10px;
+    color:var(--text-2); font-size:14px; }
+  .chiprow { display:flex; align-items:center; gap:8px; padding:0 16px 12px; }
+  .fchips { display:flex; gap:8px; }
+  .fchips span { font-size:13px; color:var(--text-2); padding:5px 14px; border-radius:16px;
+    border:1px solid var(--border-strong); }
+  .fchips span.on { background:var(--primary); color:#fff; border-color:var(--primary); font-weight:600; }
+  .chiprow .spacer { flex:1; }
+  .chiprow .selall { color:var(--primary); font-size:13px; font-weight:600; }
+  .srow2 { display:flex; align-items:center; gap:12px; padding:12px 16px; background:var(--surface);
+    border-bottom:1px solid var(--border); }
+  .srow2 .av { width:40px; height:40px; border-radius:50%; flex:0 0 auto; display:flex;
+    align-items:center; justify-content:center; font-weight:700; color:#fff; background:var(--primary); }
+  .srow2 .av.off { background:var(--border-strong); }
+  .srow2 .info { flex:1; min-width:0; }
+  .srow2 .nm { font-size:16px; font-weight:600; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .srow2 .em { font-size:12px; color:var(--text-2); margin-top:1px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* Tab bar */
+  .tabbar { height:60px; background:var(--surface); border-top:1px solid var(--border);
+    display:flex; padding-bottom:2px; }
+  .tab { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:3px; font-size:11px; color:var(--text-2); }
+  .tab.on { color:var(--primary); }
+  .tab svg { width:24px; height:24px; }
+
+  /* FAB */
+  .fab { position:absolute; right:16px; bottom:74px; width:52px; height:52px; border-radius:50%;
+    background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center;
+    font-size:28px; box-shadow:var(--shadow); z-index:20; }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>The Postbox — Design Mockup</h1>
+    <p>HTML approximation driven by DESIGN_SYSTEM.md tokens. Not pixel-identical to React Native; a design surface for fast iteration.</p>
+    <button onclick="(function(){var m=['','dark','sepia'];var b=document.body;var i=(m.indexOf(b.classList.contains('dark')?'dark':b.classList.contains('sepia')?'sepia':'')+1)%3;b.classList.remove('dark','sepia');if(m[i])b.classList.add(m[i]);})()">Cycle theme: Light / Dark / Sepia</button>
+  </div>
+
+  <div class="board" id="board"></div>
+
+<script>
+  // SVG tab icons (Ionicons-style: mail, list, bookmark, settings)
+  const ICONS = {
+    mail:'<svg viewBox="0 0 512 512" fill="currentColor"><path d="M424 80H88a56 56 0 00-56 56v240a56 56 0 0056 56h336a56 56 0 0056-56V136a56 56 0 00-56-56zm-14.18 92.63l-144 112a16 16 0 01-19.64 0l-144-112a16 16 0 1119.64-25.26L256 251.73l134.18-104.36a16 16 0 0119.64 25.26z"/></svg>',
+    list:'<svg viewBox="0 0 512 512" fill="none" stroke="currentColor" stroke-width="32" stroke-linecap="round"><path d="M160 144h288M160 256h288M160 368h288"/><circle cx="80" cy="144" r="16" fill="currentColor" stroke="none"/><circle cx="80" cy="256" r="16" fill="currentColor" stroke="none"/><circle cx="80" cy="368" r="16" fill="currentColor" stroke="none"/></svg>',
+    bookmark:'<svg viewBox="0 0 512 512" fill="currentColor"><path d="M352 48H160a48 48 0 00-48 48v368l144-128 144 128V96a48 48 0 00-48-48z"/></svg>',
+    settings:'<svg viewBox="0 0 512 512" fill="currentColor"><path d="M256 176a80 80 0 1080 80 80 80 0 00-80-80zm198 80a173 173 0 00-2-22l44-34a10 10 0 002-13l-42-72a10 10 0 00-12-4l-52 21a162 162 0 00-38-22l-8-55a10 10 0 00-10-8h-84a10 10 0 00-10 8l-8 55a162 162 0 00-38 22l-52-21a10 10 0 00-12 4L40 187a10 10 0 002 13l44 34a173 173 0 000 44l-44 34a10 10 0 00-2 13l42 72a10 10 0 0012 4l52-21a162 162 0 0038 22l8 55a10 10 0 0010 8h84a10 10 0 0010-8l8-55a162 162 0 0038-22l52 21a10 10 0 0012-4l42-72a10 10 0 00-2-13l-44-34a173 173 0 002-22z"/></svg>',
+  };
+  function tabbar(active){
+    const t=[['mail','Mailbox'],['list','Sender'],['bookmark','Saved'],['settings','Settings']];
+    return '<div class="tabbar">'+t.map(([i,l])=>
+      `<div class="tab ${l===active?'on':''}">${ICONS[i]}<span>${l}</span></div>`).join('')+'</div>';
+  }
+  const status='<div class="statusbar"><span>10:37</span><span>● ▮▮ 86</span></div>';
+
+  // ---- Inbox ----
+  const inboxRows=[
+    ['C','Canva','Fresh Presentation templates made for you','2 Jun'],
+    ['I','Instagram','See ANIL NANWANI who wants to follow you','1 Jun'],
+    ['M','Machine Design','Keep Safety Top of Mind in Robotics Adoption','1 Jun'],
+    ['F','Fever',"Are you really going to miss 30% OFF? Fever Days are nearly here!",'1 Jun'],
+    ['Z','Zacks.com',"Buy Alert: Analysts Reveal June's Best Stocks",'1 Jun'],
+    ['D','Duolingo','Your streak is waiting — keep it going','31 May'],
+  ];
+  // Header icons matching the app's Ionicons set (search = Ionicons "search").
+  const HIC={
+    search:'<svg class="hicon" viewBox="0 0 512 512" fill="currentColor"><path d="M456.69 421.39 362.6 327.3a173.81 173.81 0 0 0 34.84-104.58C397.44 126.38 319.06 48 222.72 48S48 126.38 48 222.72s78.38 174.72 174.72 174.72A173.81 173.81 0 0 0 327.3 362.6l94.09 94.09a25 25 0 0 0 35.3-35.3ZM97.92 222.72a124.8 124.8 0 1 1 124.8 124.8 124.95 124.95 0 0 1-124.8-124.8Z"/></svg>',
+    refresh:'<svg class="hicon" viewBox="0 0 512 512" fill="none" stroke="currentColor" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"><path d="M320 146s24.36-12-64-12a160 160 0 1 0 160 160"/><path d="m256 58 80 80-80 80"/></svg>',
+    people:'<svg class="hicon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3Zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z"/></svg>',
+    sort:'<svg class="hicon" viewBox="0 0 512 512" fill="none" stroke="currentColor" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"><path d="M464 208 352 96 240 208M352 96v320"/><path d="M48 304l112 112 112-112M160 416V96"/></svg>',
+  };
+  const BK='<svg class="bk" width="18" height="18" viewBox="0 0 512 512" fill="none" stroke="currentColor" stroke-width="34"><path d="M352 48H160a48 48 0 00-48 48v368l144-128 144 128V96a48 48 0 00-48-48z"/></svg>';
+  const inbox=`<div class="screen">
+    <div class="navbar"><div class="title">Mailbox (50)</div>
+      <div class="actions">${HIC.search}</div></div>
+    <div class="seg"><span class="on">All</span><span>Unread</span><span class="add">+</span></div>
+    <div class="scroll" style="padding-top:4px">${inboxRows.map((r,i)=>`<div class="mcard">
+      ${i<4?'<div class="udot"></div>':''}
+      <div class="from">${r[1]}</div>
+      <div class="subj">${r[2]}</div>
+      <div class="datechip">${r[3]} 2026</div>
+      ${BK}</div>`).join('')}</div>
+    ${tabbar('Mailbox')}</div>`;
+
+  // ---- Senders ----
+  const senders=[
+    ['Splitwise','hello@splitwise.com',true],
+    ['UEFA Europa League','info@mail.uefa.com',true],
+    ['International Card Services','abnamrocreditcard@icscards.nl',true],
+    ['MIT Solve','help@solve.mit.edu',false],
+    ['Duolingo','no-reply@duolingo.com',true],
+    ['Lea from The Offline Club','community@theoffline-club.com',false],
+    ['Mijn Albert Heijn','bonuskaart@nieuwsbrief.ah.nl',true],
+  ];
+  const sender=`<div class="screen">
+    <div class="navbar"><div class="title">Subscriptions (66)</div>
+      <div class="actions">${HIC.people}${HIC.refresh}${HIC.search}</div></div>
+    <div class="szone">
+      <div class="chiprow">
+        <div class="fchips"><span class="on">All</span><span>Active</span><span>Inactive</span></div>
+        <div class="spacer"></div>
+        <div class="selall">Select all</div>
+      </div>
+    </div>
+    <div class="scroll">
+      ${senders.slice().sort((a,b)=>a[0].localeCompare(b[0],undefined,{sensitivity:'base'})).map(s=>`<div class="srow2">
+        <div class="av ${s[2]?'':'off'}">${s[0][0]}</div>
+        <div class="info"><div class="nm">${s[0]}</div><div class="em">${s[1]}</div></div>
+        <div class="toggle ${s[2]?'':'off'}"></div></div>`).join('')}
+    </div>${tabbar('Sender')}</div>`;
+
+  // ---- Saved ----
+  const savedRows=[
+    ['Machine Design','Keep Safety Top of Mind in Robotics Adoption','1 Jun'],
+    ['Fever',"Are you really going to miss 30% OFF? Fever Days are nearly here!",'1 Jun'],
+    ['Zacks.com',"Buy Alert: Analysts Reveal June's Best Stocks",'1 Jun'],
+  ];
+  const SBK='<svg class="bk" width="18" height="18" viewBox="0 0 512 512" fill="currentColor"><path d="M352 48H160a48 48 0 00-48 48v368l144-128 144 128V96a48 48 0 00-48-48z"/></svg>';
+  const saved=`<div class="screen">
+    <div class="navbar"><div class="title">Saved (3)</div>
+      <div class="actions"><span class="sortIcon" title="Sort by date" onclick="(function(b){var s=b.closest('.screen').querySelector('.scroll');[...s.children].reverse().forEach(c=>s.appendChild(c));})(this)">${HIC.sort}</span>${HIC.search}</div></div>
+    <div class="seg"><span class="on">All</span><span>Unread</span><span class="add">+</span></div>
+    <div class="scroll" style="padding-top:4px">${savedRows.map((r,i)=>`<div class="mcard">
+      ${i<2?'<div class="udot"></div>':''}
+      <div class="from">${r[0]}</div>
+      <div class="subj">${r[1]}</div>
+      <div class="datechip">${r[2]} 2026</div>
+      ${SBK}</div>`).join('')}</div>${tabbar('Saved')}</div>`;
+
+  // ---- Settings ----
+  const settings=`<div class="screen">
+    <div class="navbar"><div class="title">Settings</div></div>
+    <div class="scroll">
+      <div class="sectionhead">Account &amp; Profile</div>
+      <div class="card">
+        <div class="srow"><div class="l"><div class="t">Connected Mailboxes</div><div class="s">Manage your email accounts</div></div><div class="r chev">›</div></div>
+        <div class="srow"><div class="l"><div class="t" style="color:var(--danger)">Logout</div></div></div>
+      </div>
+      <div class="sectionhead">Appearance &amp; Display</div>
+      <div class="card">
+        <div class="srow"><div class="l"><div class="t">Default Theme</div><div class="s">Choose your preferred theme</div></div><div class="r">System ›</div></div>
+        <div class="srow"><div class="l"><div class="t">Font Size</div><div class="s">Adjust text size for readability</div></div><div class="r">16px ›</div></div>
+        <div class="srow"><div class="l"><div class="t">Default Reading Mode</div><div class="s">How to view newsletters</div></div><div class="r">Summary ›</div></div>
+      </div>
+      <div class="sectionhead">Notifications</div>
+      <div class="card">
+        <div class="srow"><div class="l"><div class="t">Push Notifications</div><div class="s">New newsletter alerts</div></div><div class="toggle"></div></div>
+        <div class="srow"><div class="l"><div class="t">Notification Sound</div><div class="s">Play sound with notifications</div></div><div class="toggle off"></div></div>
+      </div>
+    </div>${tabbar('Settings')}</div>`;
+
+  const screens=[['Inbox',inbox],['Senders',sender],['Saved',saved],['Settings',settings]];
+  document.getElementById('board').innerHTML = screens.map(([name,html])=>
+    `<div class="phone"><div class="label">${name}</div><div class="notch"></div>${status}${html}</div>`).join('');
+</script>
+</body>
+</html>

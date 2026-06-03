@@ -13,7 +13,16 @@ export const colors = {
     textPrimary: '#E2E8F0', // Off-White
     textSecondary: '#A0AEC0', // Light Slate
   },
+  sepia: {
+    primary: '#4A90E2', // Royal Blue (brand accent kept across all themes)
+    background: '#F1E7CF', // Warm paper
+    surface: '#FAF3E0', // Warm card
+    textPrimary: '#5B4636', // Warm dark brown
+    textSecondary: '#8A7866', // Muted brown
+  },
 };
+
+export type ThemeName = keyof typeof colors; // 'light' | 'dark' | 'sepia'
 
 export const theme = {
   light: {
@@ -21,5 +30,8 @@ export const theme = {
   },
   dark: {
     ...colors.dark,
+  },
+  sepia: {
+    ...colors.sepia,
   },
 }; 

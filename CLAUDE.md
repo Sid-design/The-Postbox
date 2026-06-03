@@ -250,6 +250,26 @@ You drop a screenshot into a shared/local folder → Claude reads the PNG → ed
 - ✅ Professional app icon + splash + notification/adaptive icons shipped (ultra-minimal postbox mark, `#4A90E2`).
 - Support email is personal Gmail (`siddharth.daswani7@gmail.com`) — fine for now per owner.
 
+## Design system & mockup (Session 11 — IN PROGRESS, continues next session)
+
+We design-first in an HTML mockup, then port to RN. Two canonical files:
+- **`DESIGN_SYSTEM.md`** — tokens (colors incl. **sepia**, type/spacing/radius scales),
+  component specs, and §11–12: the agreed per-screen redesigns + the pending list.
+- **`design/index.html`** — interactive mockup of all screens, **Light/Dark/Sepia**
+  toggle. Open it directly, or preview server `design-mockup` (serves `design/` :5599).
+  Render/iterate with the Claude Preview tools (no app build needed).
+
+**Agreed but NOT yet in RN code** (mockup only): Mailbox header + frozen themed
+strip + cards; Sender revamp (Groups/Refresh/Search icons, inline filter chips,
+avatar + switch rows, alphabetical sort, pull-to-refresh, no big search bar);
+Saved (Mailbox cards + header sort icon newest⇄oldest + "+" groups). **In code:**
+sepia palette in `theme.ts` + `navigationTheme.ts` only.
+
+**Next session = continue design** (polish Settings, mock Detail reader, finalize
+icon), THEN one code-port pass: build a `ThemeContext` (system/light/dark/sepia),
+wire `App.tsx` + Settings picker, fix hardcoded `colors.light.*` so dark+sepia work
+everywhere, port the screen redesigns, + one build. Full to-do in `DESIGN_SYSTEM.md` §12.
+
 ## Current Status (as of 2026-06-01)
 
 ### What's done
@@ -288,7 +308,9 @@ You drop a screenshot into a shared/local folder → Claude reads the PNG → ed
 | Merge `fix/app-issues-post-cng` → master | ✅ | Merged (subscription import confirmed on Build 13). |
 | Cloud-Mac Maestro CI (free, public repo) | ✅ | Live; runs on master push (non-blocking). PRs get fast Jest on Linux. |
 | E2E auth bypass + branding icon + hosted legal pages | ✅ | Session 11 (PRs #2/#3/#4 merged). |
-| iOS dark-mode bug fixes (P1/P2) | ⏳ | **NEXT.** Do on the local phone hot-reload loop. Start: SenderManagementScreen dark mode. |
+| Design system + HTML mockup (light/dark/sepia) | ⏳ | **IN PROGRESS.** Mailbox/Sender/Saved agreed; continues next session (Settings, Detail, icon). See DESIGN_SYSTEM.md §11–12. |
+| Code port: 3-mode ThemeContext + screen cleanup + screen redesigns | ☐ | After design finalized. Folds in the dark-mode P1/P2 fixes (hardcoded `colors.light.*`). One build. |
+| New app icon (external generator) | ☐ | User picking options; drop 1024 PNG → wire via `.branding-tools`. |
 | TestFlight | ☐ | After UI/bug pass. |
 
 ### Preview build — failure root cause & fix (2026-05-29)
