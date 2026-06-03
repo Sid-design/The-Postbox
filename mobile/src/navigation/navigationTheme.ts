@@ -26,4 +26,19 @@ export const navigationTheme = {
       notification: colors.dark.primary,
     },
   },
+  // Sepia uses the light theme structure (it's a warm light theme), with the
+  // sepia palette. `dark: false` so RN renders light-appropriate native bits.
+  sepia: {
+    ...DefaultTheme,
+    dark: false,
+    colors: {
+      ...DefaultTheme.colors,
+      primary: colors.sepia.primary,
+      background: colors.sepia.background,
+      card: colors.sepia.surface,
+      text: colors.sepia.textPrimary,
+      border: colors.sepia.background,
+      notification: colors.sepia.primary,
+    },
+  },
 }; 

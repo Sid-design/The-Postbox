@@ -363,10 +363,17 @@ Machines hit **max restart count (10)** and stopped. The mobile app saw proxy/co
 - **Local phone hot-reload + manual screenshots** (visual) — the fast UI-iteration loop; JS changes hot-reload in ~1s with real data, no build.
 - **Maestro on cloud-Mac** (regression net) — unattended on master, never block on it.
 
+#### Design system & mockup (started this session, continues next)
+Adopted a **design-first workflow**: iterate the look in an HTML mockup, then port to RN.
+- **`DESIGN_SYSTEM.md`** — single source of truth: color tokens (now incl. **sepia**), type/spacing/radius scales, component specs, and the agreed per-screen redesigns + pending list (§11–12).
+- **`design/index.html`** — interactive mockup of all screens with a **Light / Dark / Sepia** toggle, rendered/iterated via the preview tools (no app build).
+- **Agreed redesigns** (mockup only, not yet ported): Mailbox header + frozen themed strip + cards; **Sender** revamp (Groups/Refresh/Search icons, inline All/Active/Inactive chips, avatar + toggle-switch rows, alphabetical sort, pull-to-refresh, no big search bar); **Saved** (Mailbox cards + header sort icon newest⇄oldest + "+" groups).
+- **In code:** **sepia** palette added to `theme.ts` + `navigationTheme.ts` (3rd theme alongside light/dark).
+
 #### Next session plan
-- Fix the **P1/P2 dark-mode bugs** on the local phone loop, starting with `SenderManagementScreen` (hardcoded `colors.light.*`).
-- Optionally add a client-side **mock-data layer** for E2E so Maestro screenshots show populated screens.
-- Fix the **stale non-ScreenQA Jest suites** (pre-existing failures) and restore `npm ci` (lockfile regen).
+- **Continue the design** — polish Settings, mock the Detail (newsletter reader) screen, finalize the new app icon (external generator).
+- **Then one code-port pass + a single build:** build a `ThemeContext` (system/light/dark/sepia, persisted), wire `App.tsx` + the Settings theme picker, fix hardcoded `colors.light.*` so **dark + sepia** render everywhere, and port the screen redesigns.
+- **Backlog:** stale non-ScreenQA Jest suites; restore `npm ci` (lockfile regen); optional E2E mock-data layer; Maestro selector nit (non-blocking).
 
 ---
 
